@@ -1,0 +1,16 @@
+# Candidate Controller Services
+
+| Type | Properties | Relationships | Annotations | Source | Description |
+|------|-----------|---------------|------------|--------|-------------|
+| `org.apache.nifi.box.controllerservices.DeveloperBoxClientService` | 1 (required 1) | Developer Token | Tags: box, client, provider | nifi-extension-bundles/nifi-box-bundle/nifi-box-services/src/main/java/org/apache/nifi/box/controllerservices/DeveloperBoxClientService.java | Provides Box client objects through which Box API calls can be used. This using a developer token and is for testing only. |
+| `org.apache.nifi.box.controllerservices.JsonConfigBasedBoxClientService` | 6 (required 4) | Account ID, App Actor, App Config File, App Config JSON, Connect Timeout, Read Timeout | Tags: box, client, provider | nifi-extension-bundles/nifi-box-bundle/nifi-box-services/src/main/java/org/apache/nifi/box/controllerservices/JsonConfigBasedBoxClientService.java | Provides Box client objects through which Box API calls can be used. |
+| `org.apache.nifi.controller.asana.StandardAsanaClientProviderService` | 3 (required 3) | API URL, Personal Access Token, Workspace | Tags: asana, service, authentication | nifi-extension-bundles/nifi-asana-bundle/nifi-asana-services/src/main/java/org/apache/nifi/controller/asana/StandardAsanaClientProviderService.java | Common service to authenticate with Asana, and to work on a specified workspace. |
+| `org.apache.nifi.controller.service.GhostControllerService` | 1 (required 1) |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-core/src/main/java/org/apache/nifi/controller/service/GhostControllerService.java |  |
+| `org.apache.nifi.controller.service.StandardControllerServiceApiLookup` |  |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-components/src/main/java/org/apache/nifi/controller/service/StandardControllerServiceApiLookup.java |  |
+| `org.apache.nifi.controller.service.StandardControllerServiceInitializationContext` |  |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-components/src/main/java/org/apache/nifi/controller/service/StandardControllerServiceInitializationContext.java |  |
+| `org.apache.nifi.controller.service.StandardControllerServiceInvocationHandler` |  |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-components/src/main/java/org/apache/nifi/controller/service/StandardControllerServiceInvocationHandler.java |  |
+| `org.apache.nifi.controller.service.StandardControllerServiceProvider` |  |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-components/src/main/java/org/apache/nifi/controller/service/StandardControllerServiceProvider.java |  |
+| `org.apache.nifi.controller.service.StandardControllerServiceReference` |  |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-components/src/main/java/org/apache/nifi/controller/service/StandardControllerServiceReference.java |  |
+| `org.apache.nifi.controller.service.StandardControllerServiceResolver` |  |  |  | nifi-framework-bundle/nifi-framework/nifi-framework-components/src/main/java/org/apache/nifi/controller/service/StandardControllerServiceResolver.java |  |
+
+> Auto-generated from NiFi source; update scripts as needed.

@@ -34,7 +34,7 @@ Here’s a distilled set of principles and patterns drawn from the guides above 
 
 Here’s an example of a “large-project” directory structure you can use as a starting point. You can adapt or rename parts according to your domain:
 
-```
+````
 my_project/
 ├── pyproject.toml
 ├── README.md
@@ -59,6 +59,38 @@ my_project/
 ├── .github/ or .gitlab/           ← CI / workflows
 └── .gitignore
 ```
+### Where the NiFi automation CLI fits into this layout
+
+The current repository mirrors much of the pattern above:
+
+```
+nifi/
+├── automation/
+│   ├── pyproject.toml
+│   ├── README.md
+│   ├── scripts/                       ← tooling (e.g., generate_component_lists.py)
+│   └── src/nifi_automation/           ← main package
+│       ├── __init__.py
+│       ├── cli.py                     ← Typer entry points
+│       ├── auth.py                    ← authentication logic
+│       ├── client.py                  ← REST wrappers
+│       ├── flow_builder.py            ← spec parsing & deployment orchestration
+│       ├── config.py                  ← pydantic settings
+│       └── ...
+├── docs/
+│   ├── automation-flow-builder.md     ← design overview for the CLI
+│   ├── design-log.md                  ← chronological decision log
+│   └── components/                    ← processor/controller inventories
+└── ...
+``
+
+Key takeaways:
+- Package code under `automation/src/nifi_automation/` aligns with the `src/` layout best practice.
+- Supporting scripts live in `automation/scripts/`, mirroring the "scripts" directory concept.
+- Architecture and decision docs reside in `docs/` alongside the code.
+- Tests (currently unit-level) can grow parallel to `src/nifi_automation`, matching the recommended layout.
+
+
 
 Some notes on the layout:
 
