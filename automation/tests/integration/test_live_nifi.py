@@ -82,5 +82,51 @@ def test_deploy_flow_and_resolve_metadata(tmp_path: Path):
         assert controller_service["component"]["state"] == "DISABLED"
         assert controller_service["component"]["name"].endswith("-Stub")
 
+        # Ensure no bulletins (warnings/errors) were raised on this flow
+        group_flow = flow_entity["processGroupFlow"]["flow"]
+        bulletins = group_flow.get("bulletins") or []
+        assert not bulletins, f"Process group emitted bulletins: {bulletins}"
+
+        # Confirm all processors are valid and not disabled
+        invalid_details = []
+        for proc in processors:
+            status = proc["component"].get("validationStatus")
+            if status == "VALID":
+                continue
+            errors = proc["component"].get("validationErrors") or []
+            # Allow the Lookup Attribute processor to remain invalid because the stub controller service stays disabled
+            if (
+                proc["component"].get("name") == "Lookup Attribute"
+                and errors
+                and all("controller service" in err.lower() for err in errors)
+            ):
+                continue
+            invalid_details.append((proc["component"].get("name"), status, errors))
+        assert not invalid_details, f"Unexpected processor validation issues: {invalid_details}"
+
+        disabled = [
+            proc["component"]["name"]
+            for proc in processors
+            if proc["component"].get("state") == "DISABLED"
+        ]
+        assert not disabled, f"Processors unexpectedly disabled: {disabled}"
+
+        # Detect overlapping processors or process groups (exact same rounded position)
+        def ensure_no_overlaps(items, label):
+            seen: dict[tuple[int, int], str] = {}
+            overlaps: list[tuple[str, str]] = []
+            for item in items:
+                component = item["component"]
+                position = component.get("position") or {}
+                key = (round(position.get("x", 0)), round(position.get("y", 0)))
+                if key in seen:
+                    overlaps.append((seen[key], component.get("name")))
+                else:
+                    seen[key] = component.get("name")
+            assert not overlaps, f"Overlapping {label}: {overlaps}"
+
+        ensure_no_overlaps(processors, "processors")
+        ensure_no_overlaps(group_flow.get("processGroups", []), "process groups")
+
         pg_entity = client.get_process_group(pg_id)
         client.delete_process_group(pg_id, pg_entity["revision"]["version"])
