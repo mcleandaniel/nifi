@@ -1,5 +1,7 @@
 # NiFi Flow Automation – Design Overview
 
+> See also [`design-log.md`](design-log.md) for chronological design discussions and decisions.
+
 ## 1. Context & Motivation
 Automating NiFi flow creation via a REST-driven CLI provides a repeatable, scriptable way to stand up process groups, processors, connections, and supporting components (controller services, parameter contexts, etc.). The goal is to describe desired flows in declarative YAML and deploy them against any NiFi instance without manual UI steps or custom NiFi plugins.
 
@@ -7,6 +9,7 @@ We assume:
 - NiFi exposes its REST API (`/nifi-api`).
 - Username/password-based authentication is enabled (or an equivalent token flow).
 - Operators want to embed flow deployments in CI/CD pipelines, developer onboarding scripts, or infrastructure bootstrap processes.
+- Longer-term, this automation should power an MCP (Model Context Protocol) server that can programmatically construct flows and provide richer, more legible diagrams/layouts than the default NiFi UI export.
 
 ## 2. Goals & Requirements
 ### Functional Goals
@@ -69,6 +72,72 @@ auto_terminate:
 - `ports` (input/output)
 - `nested_groups`
 - `schedule` (concurrency, run duration)
+- `layout` options (e.g., `layout: layered`, `spacing: {x: 400, y: 200}`) to guide auto-positioning while keeping overrides optional.
+
+### 3.1 Comparison with NiFi FlowSnapshot JSON
+NiFi exports versioned flows as FlowSnapshot JSON. For the trivial example, the relevant portion looks like:
+
+```json
+{
+  "flowContents": {
+    "processGroups": [],
+    "inputPorts": [],
+    "outputPorts": [],
+    "processors": [
+      {
+        "identifier": "e06388b5-0199-1000-7030-a599d997dce5",
+        "name": "Generate FlowFile",
+        "type": "org.apache.nifi.processors.standard.GenerateFlowFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.0.0"
+        },
+        "properties": {
+          "GenerateFlowFile.BatchSize": "1"
+        },
+        "position": { "x": 0.0, "y": 0.0 }
+      },
+      {
+        "identifier": "e063895d-0199-1000-05ee-df572c778106",
+        "name": "Log Attribute",
+        "type": "org.apache.nifi.processors.standard.LogAttribute",
+        "bundle": { "...": "..." },
+        "properties": {},
+        "position": { "x": 400.0, "y": 0.0 },
+        "config": {
+          "autoTerminatedRelationships": ["success"]
+        }
+      }
+    ],
+    "connections": [
+      {
+        "identifier": "e0638a19-0199-1000-d16d-4a8010060c74",
+        "name": "Generate to Log",
+        "source": {
+          "id": "e06388b5-0199-1000-7030-a599d997dce5",
+          "type": "PROCESSOR"
+        },
+        "destination": {
+          "id": "e063895d-0199-1000-05ee-df572c778106",
+          "type": "PROCESSOR"
+        },
+        "selectedRelationships": ["success"],
+        "flowFileExpiration": "0 sec",
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE"
+      }
+    ]
+  }
+}
+```
+
+- **Identifiers** – FlowSnapshot uses NiFi-generated UUIDs; the YAML spec uses human-readable aliases (`generate`, `log`) which are mapped during deployment.
+- **Bundles & defaults** – FlowSnapshot embeds the resolved bundle coordinates, queue settings, load-balancing policy, etc. The spec omits these unless overrides are needed; the deployer fills in defaults from metadata.
+- **Auto-termination** – In FlowSnapshot the flag appears in the processor `config.autoTerminatedRelationships`; in the spec it lives under `auto_terminate`.
+- **Layout** – FlowSnapshot stores explicit `position` values for all components. The spec allows positions to be omitted; the deployer will auto-layout nodes by default (with future layout strategies configurable) while still respecting explicit coordinates.
+- **Structure** – FlowSnapshot is verbose and tightly coupled to NiFi’s internal DTOs, whereas the spec keeps only the ergonomics necessary to describe intent. The deployer bridges the gap by populating required fields when calling the REST API.
 
 ## 4. Architecture Overview
 ```mermaid
@@ -170,5 +239,3 @@ Error handling:
 - Apache NiFi REST API docs: https://nifi.apache.org/docs/nifi-docs/rest-api
 - Processor descriptor DTOs: `/nifi-api/flow/processors/types`, `/nifi-api/flow/processors/{type}`
 - NiFi CLI (Java) for comparison: `nifi-toolkit`
-
-
