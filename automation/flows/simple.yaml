@@ -3,23 +3,17 @@ process_group:
   name: SimpleWorkflow
   position: [0, 0]
 
-controller_services:
-  - id: json-reader
-    name: JsonTreeReader
-    type: org.apache.nifi.json.JsonTreeReader
-  - id: json-writer
-    name: JsonRecordSetWriter
-    type: org.apache.nifi.json.JsonRecordSetWriter
-
 processors:
   - id: generate
     name: GenerateRecord
     type: org.apache.nifi.processors.standard.GenerateRecord
     position: [0, 0]
     properties:
-      record-reader: json-reader
       record-writer: json-writer
-      schema: |
+      number-of-records: "1"
+      nullable-fields: "false"
+      null-percentage: "0.0"
+      schema-text: |
         {
           "type": "record",
           "name": "test",
@@ -33,8 +27,8 @@ processors:
     type: org.apache.nifi.processors.standard.UpdateRecord
     position: [400, 0]
     properties:
-      record-reader: json-reader
-      record-writer: json-writer
+      Record Reader: json-reader
+      Record Writer: json-writer
       /status: "UPPER(/status)"
   - id: query
     name: QueryRecord
@@ -44,7 +38,7 @@ processors:
       record-reader: json-reader
       record-writer: json-writer
       success: "SELECT * FROM FLOWFILE WHERE status = 'OK'"
-      failure: "SELECT * FROM FLOWFILE WHERE status != 'OK'"
+      failure: "SELECT * FROM FLOWFILE WHERE status <> 'OK'"
   - id: log_success
     name: LogAttribute (Success)
     type: org.apache.nifi.processors.standard.LogAttribute

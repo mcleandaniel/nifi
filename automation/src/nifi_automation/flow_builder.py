@@ -178,21 +178,31 @@ def compute_auto_terminate_relationships(
     specified: Iterable[str],
     relationships: Iterable[Mapping[str, Any]],
     connected_relationships: Set[str],
+    supports_dynamic_relationships: bool = False,
 ) -> List[str]:
     specified = list(specified or [])
-    known_relationships = {rel.get("name") for rel in relationships or [] if rel.get("name")}
+    relationship_map = {
+        (rel.get("name") or "").lower(): rel.get("name")
+        for rel in relationships or []
+        if rel.get("name")
+    }
+    known_relationships = set(relationship_map.values())
     result: Set[str] = set()
 
     for rel in specified:
-        if rel not in known_relationships:
-            raise FlowDeploymentError(
-                f"Processor '{processor_name}' references unknown relationship '{rel}' in auto_terminate"
-            )
-        if rel in connected_relationships:
+        canonical = relationship_map.get(rel.lower())
+        if canonical is None:
+            if supports_dynamic_relationships:
+                canonical = rel
+            else:
+                raise FlowDeploymentError(
+                    f"Processor '{processor_name}' references unknown relationship '{rel}' in auto_terminate"
+                )
+        if canonical in connected_relationships:
             raise FlowDeploymentError(
                 f"Processor '{processor_name}' cannot auto-terminate relationship '{rel}' because it is connected"
             )
-        result.add(rel)
+        result.add(canonical)
 
     for descriptor in relationships or []:
         name = descriptor.get("name")
@@ -274,14 +284,18 @@ def load_flow_spec(path: Path) -> FlowSpec:
 class FlowDeployer:
     """Deploys flow specifications using the NiFi REST API."""
 
-    def __init__(self, client: NiFiClient, spec: FlowSpec):
+    def __init__(
+        self,
+        client: NiFiClient,
+        spec: FlowSpec,
+        controller_service_map: Optional[Mapping[str, str]] = None,
+    ):
         self.client = client
         self.spec = spec
+        self.controller_service_map = dict(controller_service_map or {})
 
     def deploy(self) -> str:
         """Create the process group and all processors/connections. Returns the new PG ID."""
-
-        prepared_processors = self._prepare_processors()
 
         root_pg_id = "root"
         existing = self.client.find_child_process_group_by_name(root_pg_id, self.spec.process_group_name)
@@ -295,7 +309,8 @@ class FlowDeployer:
         )
         pg_id = pg["id"]
 
-        self._create_controller_service_stubs(pg_id, prepared_processors)
+        prepared_processors = self._prepare_processors()
+        self._apply_controller_service_mappings(prepared_processors, self.controller_service_map)
 
         processor_id_map: Dict[str, str] = {}
         for prepared in prepared_processors:
@@ -360,8 +375,9 @@ class FlowDeployer:
             auto_terminate = compute_auto_terminate_relationships(
                 processor_name=proc.name,
                 specified=self.spec.auto_terminate.get(proc.key, []),
-                relationships=metadata.get("supportedRelationships") or [],
+                relationships=metadata.get("supportedRelationships") or metadata.get("relationships") or [],
                 connected_relationships=connections_usage.get(proc.key, set()),
+                supports_dynamic_relationships=bool(metadata.get("supportsDynamicRelationships")),
             )
             prepared.append(
                 PreparedProcessor(
@@ -385,97 +401,44 @@ class FlowDeployer:
                 raise FlowDeploymentError(
                     f"Connection '{conn.name}' references unknown processor '{conn.source}'"
                 )
-            relationships = metadata.get("supportedRelationships") or []
-            known = {rel.get("name") for rel in relationships if rel.get("name")}
+            relationships = metadata.get("supportedRelationships") or metadata.get("relationships") or []
+            relationship_map = {
+                (rel.get("name") or "").lower(): rel.get("name")
+                for rel in relationships
+                if rel.get("name")
+            }
+            supports_dynamic = bool(metadata.get("supportsDynamicRelationships"))
             for rel in conn.relationships:
-                if rel not in known:
-                    raise FlowDeploymentError(
-                        f"Connection '{conn.name}' references unknown relationship '{rel}' "
-                        f"on processor '{conn.source}'"
-                    )
-                usage.setdefault(conn.source, set()).add(rel)
+                canonical = relationship_map.get(rel.lower())
+                if canonical is None:
+                    if supports_dynamic:
+                        canonical = rel
+                    else:
+                        raise FlowDeploymentError(
+                            f"Connection '{conn.name}' references unknown relationship '{rel}' "
+                            f"on processor '{conn.source}'"
+                        )
+                usage.setdefault(conn.source, set()).add(canonical)
         return usage
 
-    def _create_controller_service_stubs(
+    def _apply_controller_service_mappings(
         self,
-        pg_id: str,
         prepared_processors: Iterable[PreparedProcessor],
+        controller_service_id_map: Mapping[str, str],
     ) -> None:
-        service_cache: Dict[tuple[str, str, str, str], Dict[str, Any]] = {}
+        if not controller_service_id_map:
+            return
         for prepared in prepared_processors:
-            for requirement in prepared.service_requirements:
-                bundle = requirement.bundle or {}
-                cache_key = (
-                    requirement.service_type,
-                    bundle.get("group") or "",
-                    bundle.get("artifact") or "",
-                    bundle.get("version") or "",
-                )
-                service = service_cache.get(cache_key)
-                if service is None:
-                    service_name = f"{prepared.spec.name}-{requirement.property_name}-Stub"
-                    service = self._provision_controller_service_stub(
-                        pg_id=pg_id,
-                        requirement=requirement,
-                        service_name=service_name,
-                    )
-                    service_cache[cache_key] = service
-                prepared.properties[requirement.property_name] = service["id"]
-
-    def _provision_controller_service_stub(
-        self,
-        pg_id: str,
-        requirement: ControllerServiceRequirement,
-        service_name: str,
-    ) -> Dict[str, Any]:
-        candidates = self.client.get_controller_service_candidates(
-            api_type=requirement.service_type,
-            api_bundle=requirement.bundle,
-        )
-        viable: List[tuple[Dict[str, Any], Dict[str, Any]]] = []
-        for candidate in candidates:
-            definition = self.client.get_controller_service_definition(candidate["bundle"], candidate["type"])
-            descriptors = definition.get("propertyDescriptors") or {}
-            if any(desc.get("typeProvidedByValue") for desc in descriptors.values() if desc and desc.get("required")):
-                continue
-            viable.append((candidate, definition))
-
-        if not viable:
-            raise FlowDeploymentError(
-                f"Processor property requiring controller service '{requirement.service_type}' "
-                "cannot be auto-configured; please supply an explicit controller service in the spec."
-            )
-
-        candidate, definition = sorted(
-            viable,
-            key=lambda item: sum(1 for d in item[1].get("propertyDescriptors", {}).values() if d and d.get("required")),
-        )[0]
-
-        placeholders: Dict[str, str] = {}
-        for key, descriptor in (definition.get("propertyDescriptors") or {}).items():
-            if not descriptor or not descriptor.get("required"):
-                continue
-            if descriptor.get("defaultValue"):
-                placeholders[key] = _normalize_property_value(descriptor.get("defaultValue"))
-                continue
-            allowable = descriptor.get("allowableValues") or []
-            if allowable:
-                option = allowable[0]
-                placeholders[key] = _normalize_property_value(option.get("value") or option.get("displayName"))
-                continue
-            placeholders[key] = f"auto-stub-{key}"
-
-        service = self.client.create_controller_service(
-            parent_id=pg_id,
-            name=service_name,
-            type_name=candidate["type"],
-            bundle=candidate.get("bundle"),
-            properties=placeholders,
-        )
-        return service
+            for prop, value in list(prepared.properties.items()):
+                if value in controller_service_id_map:
+                    prepared.properties[prop] = controller_service_id_map[value]
 
 
-def deploy_flow_from_file(client: NiFiClient, path: Path) -> str:
+def deploy_flow_from_file(
+    client: NiFiClient,
+    path: Path,
+    controller_service_map: Optional[Mapping[str, str]] = None,
+) -> str:
     spec = load_flow_spec(path)
-    deployer = FlowDeployer(client, spec)
+    deployer = FlowDeployer(client, spec, controller_service_map=controller_service_map)
     return deployer.deploy()

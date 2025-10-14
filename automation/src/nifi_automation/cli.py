@@ -12,6 +12,7 @@ from rich.console import Console
 from .auth import AuthenticationError, obtain_access_token
 from .client import NiFiClient
 from .config import AuthSettings, build_settings
+from .controller_registry import ensure_root_controller_services
 from .flow_builder import FlowDeploymentError, deploy_flow_from_file
 
 console = Console()
@@ -120,7 +121,8 @@ def deploy_flow(
 
     try:
         with NiFiClient(settings, token) as client:
-            pg_id = deploy_flow_from_file(client, spec_path)
+            service_map = ensure_root_controller_services(client)
+            pg_id = deploy_flow_from_file(client, spec_path, controller_service_map=service_map)
     except FlowDeploymentError as exc:
         console.print(f"[red]Deployment error:[/red] {exc}")
         raise typer.Exit(code=1) from exc

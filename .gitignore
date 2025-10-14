@@ -28,3 +28,4 @@ __pycache__
 # Develocity
 .mvn/.develocity/
 .env
+logs/

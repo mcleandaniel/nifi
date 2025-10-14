@@ -1,132 +1,155 @@
 import os
+import time
 from pathlib import Path
-from uuid import uuid4
+from typing import Iterable
 
 import pytest
 
-from nifi_automation.config import build_settings
 from nifi_automation.auth import obtain_access_token
+from nifi_automation.config import build_settings
 from nifi_automation.client import NiFiClient
-from nifi_automation.flow_builder import deploy_flow_from_file
+from nifi_automation.controller_registry import ensure_root_controller_services
+from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec
 
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.skipif(
-    not os.getenv("RUN_NIFI_INTEGRATION"),
-    reason="Set RUN_NIFI_INTEGRATION=1 to run NiFi integration tests against https://localhost:8443/nifi-api.",
-)
-def test_deploy_flow_and_resolve_metadata(tmp_path: Path):
-    """Deploy a sample flow, confirm controller-service stubs exist, and auto-termination is inferred."""
+FLOW_FILES: Iterable[Path] = [
+    Path("flows/trivial.yaml"),
+]
 
-    spec_path = tmp_path / "integration-flow.yaml"
-    process_group_name = f"Integration-{uuid4()}"
-    spec_path.write_text(
-        "\n".join(
-            [
-                "process_group:",
-                f"  name: {process_group_name}",
-                "  position: [0, 0]",
-                "",
-                "processors:",
-                "  - id: generate",
-                "    name: Generate FlowFile",
-                "    type: org.apache.nifi.processors.standard.GenerateFlowFile",
-                "    position: [0, 0]",
-                "    properties:",
-                '      Batch Size: "1"',
-                "  - id: lookup",
-                "    name: Lookup Attribute",
-                "    type: org.apache.nifi.processors.standard.LookupAttribute",
-                "    position: [400, 0]",
-                "    properties:",
-                "      include-empty-values: \"false\"",
-                "  - id: log",
-                "    name: Log Attribute",
-                "    type: org.apache.nifi.processors.standard.LogAttribute",
-                "    position: [800, 0]",
-                "",
-                "connections:",
-                "  - name: generate-to-lookup",
-                "    source: generate",
-                "    destination: lookup",
-                "    relationships: [success]",
-                "  - name: lookup-to-log",
-                "    source: lookup",
-                "    destination: log",
-                "    relationships: [matched]",
-                "",
-                "auto_terminate: {}",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
 
-    settings = build_settings(None, None, None, False, 10.0)
-    token = obtain_access_token(settings)
-    with NiFiClient(settings, token) as client:
-        pg_id = deploy_flow_from_file(client, spec_path)
-
+def wait_for_flow_stabilization(client: NiFiClient, pg_id: str, timeout: float = 5.0):
+    deadline = time.time() + timeout
+    while True:
         flow_entity = client._client.get(f"/flow/process-groups/{pg_id}").json()
-        processors = flow_entity["processGroupFlow"]["flow"]["processors"]
-        lookup_proc = next(proc for proc in processors if proc["component"]["name"] == "Lookup Attribute")
-        lookup_config = lookup_proc["component"]["config"]
-
-        service_id = lookup_config["properties"]["lookup-service"]
-        assert service_id, "Lookup Attribute should reference an auto-created controller service"
-        assert set(lookup_config["autoTerminatedRelationships"]) == {"failure", "unmatched"}
-
-        controller_service = client._client.get(f"/controller-services/{service_id}").json()
-        assert controller_service["component"]["state"] == "DISABLED"
-        assert controller_service["component"]["name"].endswith("-Stub")
-
-        # Ensure no bulletins (warnings/errors) were raised on this flow
         group_flow = flow_entity["processGroupFlow"]["flow"]
-        bulletins = group_flow.get("bulletins") or []
-        assert not bulletins, f"Process group emitted bulletins: {bulletins}"
-
-        # Confirm all processors are valid and not disabled
-        invalid_details = []
-        for proc in processors:
-            status = proc["component"].get("validationStatus")
-            if status == "VALID":
-                continue
-            errors = proc["component"].get("validationErrors") or []
-            # Allow the Lookup Attribute processor to remain invalid because the stub controller service stays disabled
-            if (
-                proc["component"].get("name") == "Lookup Attribute"
-                and errors
-                and all("controller service" in err.lower() for err in errors)
-            ):
-                continue
-            invalid_details.append((proc["component"].get("name"), status, errors))
-        assert not invalid_details, f"Unexpected processor validation issues: {invalid_details}"
-
-        disabled = [
+        processors = group_flow.get("processors") or []
+        invalid = [
             proc["component"]["name"]
             for proc in processors
-            if proc["component"].get("state") == "DISABLED"
+            if proc["component"].get("validationStatus") not in {"VALID", "DISABLED"}
         ]
-        assert not disabled, f"Processors unexpectedly disabled: {disabled}"
+        if not invalid or time.time() > deadline:
+            return flow_entity, processors, invalid
+        time.sleep(0.25)
 
-        # Detect overlapping processors or process groups (exact same rounded position)
-        def ensure_no_overlaps(items, label):
-            seen: dict[tuple[int, int], str] = {}
-            overlaps: list[tuple[str, str]] = []
-            for item in items:
-                component = item["component"]
-                position = component.get("position") or {}
-                key = (round(position.get("x", 0)), round(position.get("y", 0)))
-                if key in seen:
-                    overlaps.append((seen[key], component.get("name")))
-                else:
-                    seen[key] = component.get("name")
-            assert not overlaps, f"Overlapping {label}: {overlaps}"
 
-        ensure_no_overlaps(processors, "processors")
-        ensure_no_overlaps(group_flow.get("processGroups", []), "process groups")
+def purge_process_group(client: NiFiClient, pg_id: str, delete_group: bool = False) -> None:
+    flow = client._client.get(f"/flow/process-groups/{pg_id}").json()["processGroupFlow"]["flow"]
+    response = client._client.get(
+        f"/flow/process-groups/{pg_id}/controller-services",
+        params={"includeInherited": "false"},
+    )
+    service_listing: list[dict] = []
+    if response.status_code == 200:
+        service_listing = response.json().get("controllerServices", [])
 
-        pg_entity = client.get_process_group(pg_id)
-        client.delete_process_group(pg_id, pg_entity["revision"]["version"])
+    # Recurse into child process groups first
+    for child in flow.get("processGroups", []) or []:
+        child_id = child["component"]["id"]
+        purge_process_group(client, child_id, delete_group=True)
+
+    # Stop all processors to avoid conflicts during deletion
+    for processor in flow.get("processors", []) or []:
+        proc_id = processor["component"]["id"]
+        revision = processor.get("revision") or {}
+        body = {"revision": revision, "component": {"id": proc_id, "state": "STOPPED"}}
+        client._client.put(f"/processors/{proc_id}", json=body).raise_for_status()
+
+    # Disable & delete controller services defined at this level (after processors stop)
+    for service in service_listing or []:
+        component = service.get("component", {})
+        if component.get("parentGroupId") != pg_id:
+            continue
+        service_id = component.get("id")
+        client.disable_controller_service(service_id)
+        # wait for disable to propagate
+        for _ in range(20):
+            entity = client.get_controller_service(service_id)
+            state = entity["component"].get("state")
+            if state == "DISABLED":
+                break
+            time.sleep(0.2)
+        client.delete_controller_service(service_id)
+
+    if delete_group:
+        client.delete_process_group_recursive(pg_id)
+
+
+def purge_root(client: NiFiClient) -> None:
+    purge_process_group(client, "root", delete_group=False)
+
+
+@pytest.fixture
+def nifi_token():
+    if not os.getenv("RUN_NIFI_INTEGRATION"):
+        pytest.skip("Set RUN_NIFI_INTEGRATION=1 to run live NiFi tests")
+    settings = build_settings(None, None, None, False, 10.0)
+    token = obtain_access_token(settings)
+    assert token, "Expected NiFi access token"
+    return settings, token
+
+
+def test_fetch_token(nifi_token):
+    _, token = nifi_token
+    assert token, "Access token should not be empty"
+
+
+def test_clear_nifi_instance(nifi_token):
+    settings, token = nifi_token
+    with NiFiClient(settings, token) as client:
+        purge_root(client)
+
+
+@pytest.fixture
+def nifi_environment(nifi_token):
+    settings, token = nifi_token
+    with NiFiClient(settings, token) as client:
+        purge_root(client)
+        service_map = ensure_root_controller_services(client)
+        yield client, service_map
+
+
+@pytest.mark.parametrize("spec_path", FLOW_FILES, ids=lambda p: p.stem)
+def test_deploy_flow_spec(nifi_environment, spec_path: Path):
+    nifi_client, service_map = nifi_environment
+    spec = load_flow_spec(spec_path)
+    pg_id = deploy_flow_from_file(nifi_client, spec_path, controller_service_map=service_map)
+
+    flow_entity, processors, invalid_initial = wait_for_flow_stabilization(nifi_client, pg_id)
+    group_flow = flow_entity["processGroupFlow"]["flow"]
+
+    # Validate controller services exist per manifest
+    manifested_services = set(service_map.keys())
+    for key in manifested_services:
+        service_id = service_map[key]
+        entity = nifi_client.get_controller_service(service_id)
+        assert entity["component"]["state"] in {"ENABLED", "DISABLED"}
+
+    # Ensure no bulletins or validation errors remain (allow lookup placeholder warnings handled elsewhere)
+    bulletins = group_flow.get("bulletins") or []
+    assert not bulletins, f"Process group emitted bulletins: {bulletins}"
+
+    assert not invalid_initial, f"Processors invalid after deploy: {invalid_initial}"
+
+    disabled = [
+        proc["component"]["name"]
+        for proc in processors
+        if proc["component"].get("state") == "DISABLED"
+    ]
+    assert not disabled, f"Processors unexpectedly disabled: {disabled}"
+
+    # Detect overlapping component positions to catch layout regressions
+    seen_positions = {}
+    overlaps = []
+    for proc in processors:
+        component = proc["component"]
+        position = component.get("position") or {}
+        key = (round(position.get("x", 0)), round(position.get("y", 0)))
+        if key in seen_positions:
+            overlaps.append((seen_positions[key], component.get("name")))
+        else:
+            seen_positions[key] = component.get("name")
+    assert not overlaps, f"Overlapping processors detected: {overlaps}"

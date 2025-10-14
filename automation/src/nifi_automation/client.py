@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from contextlib import AbstractContextManager
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
@@ -65,6 +66,31 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         params = {"version": str(version), "clientId": "nifi-automation", "recursive": "true"}
         response = self._client.delete(f"/process-groups/{pg_id}", params=params)
         response.raise_for_status()
+
+    def delete_process_group_recursive(self, pg_id: str) -> None:
+        # Attempt to stop components before deletion to avoid conflicts
+        try:
+            self._client.put(f"/flow/process-groups/{pg_id}", json={"id": pg_id, "state": "STOPPED"}).raise_for_status()
+        except httpx.HTTPStatusError:
+            pass
+        for _ in range(5):
+            entity = self.get_process_group(pg_id)
+            revision = entity.get("revision", {})
+            version = revision.get("version")
+            if version is None:
+                raise RuntimeError(f"Unable to determine revision for process group {pg_id}")
+            try:
+                self.delete_process_group(pg_id, version)
+                return
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 409:
+                    raise
+                time.sleep(0.5)
+        # Final attempt, let exception propagate if it still fails
+        entity = self.get_process_group(pg_id)
+        revision = entity.get("revision", {})
+        version = revision.get("version")
+        self.delete_process_group(pg_id, version)
 
     def _resolve_bundle(self, type_name: str) -> Dict[str, str]:
         if type_name in self._bundle_cache:
@@ -192,7 +218,7 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
                 return bundle
         if type_name in self._controller_service_bundle_cache:
             return self._controller_service_bundle_cache[type_name]
-        response = self._client.get("/flow/controller-services/types")
+        response = self._client.get("/flow/controller-service-types")
         response.raise_for_status()
         service_types = response.json().get("controllerServiceTypes", [])
         for item in service_types:
@@ -225,6 +251,39 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         response = self._client.post(f"/process-groups/{parent_id}/controller-services", json=body)
         response.raise_for_status()
         return response.json()["component"]
+
+    def get_controller_service(self, service_id: str) -> Dict[str, Any]:
+        response = self._client.get(f"/controller-services/{service_id}")
+        response.raise_for_status()
+        return response.json()
+
+    def enable_controller_service(self, service_id: str) -> None:
+        entity = self.get_controller_service(service_id)
+        revision = entity.get("revision") or {}
+        body = {
+            "revision": revision,
+            "component": {"id": service_id, "state": "ENABLED"},
+        }
+        response = self._client.put(f"/controller-services/{service_id}", json=body)
+        response.raise_for_status()
+
+    def disable_controller_service(self, service_id: str) -> None:
+        entity = self.get_controller_service(service_id)
+        revision = entity.get("revision") or {}
+        body = {
+            "revision": revision,
+            "component": {"id": service_id, "state": "DISABLED"},
+        }
+        response = self._client.put(f"/controller-services/{service_id}", json=body)
+        response.raise_for_status()
+
+    def delete_controller_service(self, service_id: str) -> None:
+        entity = self.get_controller_service(service_id)
+        revision = entity.get("revision") or {}
+        version = revision.get("version")
+        params = {"version": str(version), "clientId": "nifi-automation"}
+        response = self._client.delete(f"/controller-services/{service_id}", params=params)
+        response.raise_for_status()
 
     def get_controller_service_candidates(
         self,
