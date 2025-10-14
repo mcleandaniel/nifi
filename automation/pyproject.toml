@@ -38,3 +38,6 @@ dev = [
 minversion = "8.0"
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+  "integration: marks tests that require a live NiFi instance"
+]

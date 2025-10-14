@@ -8,7 +8,7 @@ processors:
     type: org.apache.nifi.processors.standard.GenerateFlowFile
     position: [0, 0]
     properties:
-      GenerateFlowFile.BatchSize: "1"
+      Batch Size: "1"
   - id: log
     name: Log Attribute
     type: org.apache.nifi.processors.standard.LogAttribute

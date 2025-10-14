@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -25,6 +26,8 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
             headers=headers,
         )
         self._bundle_cache: Dict[str, Dict[str, str]] = {}
+        self._processor_metadata_cache: Dict[str, Dict[str, Any]] = {}
+        self._controller_service_bundle_cache: Dict[str, Dict[str, str]] = {}
 
     def get_root_flow(self) -> Dict[str, Any]:
         response = self._client.get("/flow/process-groups/root")
@@ -77,6 +80,22 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
                 self._bundle_cache[type_name] = bundle
                 return bundle
         raise ValueError(f"Processor type not found: {type_name}")
+
+    def get_processor_metadata(self, type_name: str) -> Dict[str, Any]:
+        bundle = self._resolve_bundle(type_name)
+        bundle_group = bundle.get("group")
+        bundle_artifact = bundle.get("artifact")
+        bundle_version = bundle.get("version")
+        cache_key = f"{type_name}|{bundle_group}|{bundle_artifact}|{bundle_version}"
+        if cache_key in self._processor_metadata_cache:
+            return self._processor_metadata_cache[cache_key]
+        encoded_type = quote(type_name, safe="")
+        path = f"/flow/processor-definition/{bundle_group}/{bundle_artifact}/{bundle_version}/{encoded_type}"
+        response = self._client.get(path)
+        response.raise_for_status()
+        data = response.json()
+        self._processor_metadata_cache[cache_key] = data
+        return data
 
     def create_processor(
         self,
@@ -156,6 +175,87 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         response = self._client.post(f"/process-groups/{parent_id}/connections", json=body)
         response.raise_for_status()
         return response.json()["component"]
+
+    def _resolve_controller_service_bundle(
+        self,
+        type_name: str,
+        bundle_hint: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        if bundle_hint:
+            bundle = {
+                "group": bundle_hint.get("group"),
+                "artifact": bundle_hint.get("artifact"),
+                "version": bundle_hint.get("version"),
+            }
+            if all(bundle.values()):
+                self._controller_service_bundle_cache[type_name] = bundle
+                return bundle
+        if type_name in self._controller_service_bundle_cache:
+            return self._controller_service_bundle_cache[type_name]
+        response = self._client.get("/flow/controller-services/types")
+        response.raise_for_status()
+        service_types = response.json().get("controllerServiceTypes", [])
+        for item in service_types:
+            if item.get("type") == type_name:
+                bundle = item.get("bundle")
+                if bundle:
+                    self._controller_service_bundle_cache[type_name] = bundle
+                    return bundle
+        raise ValueError(f"Controller service type not found: {type_name}")
+
+    def create_controller_service(
+        self,
+        parent_id: str,
+        name: str,
+        type_name: str,
+        bundle: Optional[Dict[str, str]] = None,
+        properties: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        resolved_bundle = self._resolve_controller_service_bundle(type_name, bundle)
+        body = {
+            "revision": {"version": 0},
+            "component": {
+                "name": name,
+                "type": type_name,
+                "bundle": resolved_bundle,
+                "parentGroupId": parent_id,
+                "properties": properties or {},
+            },
+        }
+        response = self._client.post(f"/process-groups/{parent_id}/controller-services", json=body)
+        response.raise_for_status()
+        return response.json()["component"]
+
+    def get_controller_service_candidates(
+        self,
+        api_type: str,
+        api_bundle: Optional[Dict[str, str]] = None,
+    ) -> List[Dict[str, Any]]:
+        params: Dict[str, str] = {"serviceType": api_type}
+        if api_bundle:
+            if api_bundle.get("group"):
+                params["serviceBundleGroup"] = api_bundle["group"]
+            if api_bundle.get("artifact"):
+                params["serviceBundleArtifact"] = api_bundle["artifact"]
+            if api_bundle.get("version"):
+                params["serviceBundleVersion"] = api_bundle["version"]
+        response = self._client.get("/flow/controller-service-types", params=params)
+        response.raise_for_status()
+        return response.json().get("controllerServiceTypes", [])
+
+    def get_controller_service_definition(
+        self,
+        bundle: Dict[str, str],
+        type_name: str,
+    ) -> Dict[str, Any]:
+        group = bundle.get("group")
+        artifact = bundle.get("artifact")
+        version = bundle.get("version")
+        encoded_type = quote(type_name, safe="")
+        path = f"/flow/controller-service-definition/{group}/{artifact}/{version}/{encoded_type}"
+        response = self._client.get(path)
+        response.raise_for_status()
+        return response.json()
 
     def close(self) -> None:
         self._client.close()

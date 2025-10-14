@@ -43,7 +43,7 @@ processors:
     type: org.apache.nifi.processors.standard.GenerateFlowFile
     position: [0, 0]
     properties:
-      GenerateFlowFile.BatchSize: "1"
+      Batch Size: "1"
   - id: log
     name: Log Attribute
     type: org.apache.nifi.processors.standard.LogAttribute
@@ -95,7 +95,7 @@ NiFi exports versioned flows as FlowSnapshot JSON. For the trivial example, the 
           "version": "2.0.0"
         },
         "properties": {
-          "GenerateFlowFile.BatchSize": "1"
+          "Batch Size": "1"
         },
         "position": { "x": 0.0, "y": 0.0 }
       },
@@ -140,20 +140,8 @@ NiFi exports versioned flows as FlowSnapshot JSON. For the trivial example, the 
 - **Layout** – FlowSnapshot stores explicit `position` values for all components. The spec allows positions to be omitted; the deployer will auto-layout nodes by default (with future layout strategies configurable) while still respecting explicit coordinates.
 - **Structure** – FlowSnapshot is verbose and tightly coupled to NiFi’s internal DTOs, whereas the spec keeps only the ergonomics necessary to describe intent. The deployer bridges the gap by populating required fields when calling the REST API.
 
-### 3.2 Process Group Reuse & Override Strategy
-NiFi projects commonly encapsulate reusable logic inside nested process groups (PGs). The automation must support pulling these PGs from a curated library and selectively refreshing them without disturbing sibling PGs or processors hosted in the same parent scope.
-
-- **Library-first mindset**: The spec should allow `process_groups` entries that refer to catalogued subflows (e.g., `ref: LogRequest`) rather than inlining their full definition. The deployer will resolve the reference to a concrete template (likely another YAML asset) at plan time.
-- **Override granularity**: Updates continue to operate as delete + rebuild operations, but the boundary shifts from individual processors to the referenced child PG. When a single PG is refreshed inside a parent that contains three children, only the targeted child is deleted/recreated; the remaining two child PGs and any root-level processors under the parent stay untouched.
-- **Planner implications**: The planning phase needs to classify each child PG as either `managed` (declared by the current spec) or `unmanaged` (pre-existing, not slated for replacement). Managed PGs should carry metadata such as `ref`, version, and optional override properties so the planner can decide whether a diff warrants deletion. Unmanaged PGs must always be preserved.
-- **Executor behavior**: The executor will locate the live child PG by name/annotation, delete it recursively when an override is requested, and then hydrate the replacement from the referenced template. It must avoid touching processors that live directly under the parent PG unless the parent itself is being rebuilt.
-- **Open questions**:
-  - How to annotate deployed PGs so future runs can match them back to their library references (labels, parameter context metadata, custom component annotation)?
-  - What controls whether a reference is refreshed (always, version bump, explicit `force` flag)?
-  - How do we treat nested references (a referenced PG that itself references other PGs)?
-  - Where should the library live (local repo folder, remote registry) and how do we version entries?
-
-The section above defines direction rather than a finalized schema. Implementation tasks include extending the YAML schema, enriching the planner with dependency awareness, and codifying the matching/annotation strategy so partial PG refreshes are deterministic.
+### 3.2 Process Group Reuse (Deferred)
+Reusable sub process groups remain a design goal, but the automation currently performs whole-process-group delete/recreate operations only. Selective refresh of individual child groups (while preserving siblings) is explicitly deferred to a later phase so that the present implementation stays simple and predictable. Future work will revisit library references, planner metadata, and partial replacement semantics once the base deployer is stable.
 
 ## 4. Architecture Overview
 ```mermaid
