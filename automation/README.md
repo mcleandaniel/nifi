@@ -59,7 +59,7 @@ docker run -d --name nifi \
   -v ~/nifi/logs:/opt/nifi/nifi-current/logs \
   -v ~/nifi/content:/opt/nifi/nifi-current/content_repository \
   -v ~/nifi/provenance:/opt/nifi/nifi-current/provenance_repository \
-  apache/nifi:2.0.0
+  apache/nifi:2.6.0
 ```
 
 The integration tests assume NiFi is available at `https://localhost:8443/nifi-api` with the single-user credentials shown above.
