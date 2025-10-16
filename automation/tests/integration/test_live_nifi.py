@@ -17,6 +17,7 @@ pytestmark = pytest.mark.integration
 
 FLOW_FILES: Iterable[Path] = [
     Path("flows/trivial.yaml"),
+    Path("flows/simple.yaml"),
 ]
 
 

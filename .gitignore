@@ -29,3 +29,7 @@ __pycache__
 .mvn/.develocity/
 .env
 logs/
+
+# Generated reports and logs
+automation/report.json
+llm-logs/

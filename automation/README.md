@@ -13,6 +13,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
 - [`uv`](https://github.com/astral-sh/uv) for dependency management (recommended)
 
 ## Quickstart
+> The CLI reads NiFi connection defaults (base URL, username, password) from the repo-root `.env`. Update that file or export environment variables before running the commands below if you need different credentials.
 1. **Create and activate the per-project virtual environment**  
    Always work from inside `automation/` so installs and commands target the same location:
    ```bash
@@ -38,6 +39,8 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
    nifi-automation auth-token
    nifi-automation flow-summary
    nifi-automation deploy-flow flows/trivial.yaml
+  nifi-automation controller-services-report --format markdown
+  nifi-automation controller-services-report -f json --log-level DEBUG
    ```
 
 5. **Run tests**  

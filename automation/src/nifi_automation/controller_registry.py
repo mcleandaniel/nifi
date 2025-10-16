@@ -7,7 +7,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .client import NiFiClient
 
@@ -74,6 +74,57 @@ def _save_manifest_entries(entries: List[ControllerServiceEntry]) -> None:
         json.dump(payload, fp, indent=2)
 
 
+def _canonicalize_properties(
+    properties: Dict[str, str],
+    descriptors: Dict[str, Any],
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Translate manifest property keys/values to NiFi canonical forms.
+
+    Returns a tuple of (canonical_properties, removals) where removals are the
+    original, non-canonical keys that should be cleared from the service.
+    """
+
+    canonical: Dict[str, str] = {}
+    removals: Dict[str, str] = {}
+
+    if not properties:
+        return canonical, removals
+
+    # Build lookup map for descriptor by both canonical name and display name
+    descriptor_index: Dict[str, Dict[str, Any]] = {}
+    for key, descriptor in (descriptors or {}).items():
+        name = descriptor.get("name") or key
+        descriptor_index[name] = descriptor
+        display_name = descriptor.get("displayName")
+        if display_name:
+            descriptor_index[display_name] = descriptor
+
+    for raw_key, raw_value in properties.items():
+        descriptor = descriptor_index.get(raw_key)
+        canonical_key = raw_key
+        canonical_value = raw_value
+
+        if descriptor:
+            canonical_key = descriptor.get("name") or canonical_key
+
+            allowable = descriptor.get("allowableValues") or []
+            for item in allowable:
+                allowed = item.get("allowableValue") or {}
+                display = allowed.get("displayName")
+                value = allowed.get("value")
+                if raw_value == display:
+                    canonical_value = value
+                    break
+
+            display_name = descriptor.get("displayName")
+            if display_name and display_name != canonical_key:
+                removals[display_name] = ""
+
+        canonical[canonical_key] = canonical_value
+
+    return canonical, removals
+
+
 def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
     """Ensure all manifest controller services exist at the NiFi root PG.
 
@@ -121,27 +172,34 @@ def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
             current_state = service_entity["component"].get("state")
             if current_state in {"ENABLING", "DISABLING"}:
                 current_state = _wait_for_stable_state(client, service_component["id"])
+                service_entity = client.get_controller_service(service_component["id"])
             desired_properties = entry.properties or {}
-            current_props = service_entity["component"].get("properties") or {}
-            if desired_properties and desired_properties != current_props:
-                reenable_after_update = current_state == "ENABLED"
-                if reenable_after_update:
+            component = service_entity["component"]
+            descriptors = component.get("descriptors") or {}
+            desired_properties, removals = _canonicalize_properties(desired_properties, descriptors)
+            current_props = component.get("properties") or {}
+            if desired_properties and {**desired_properties, **removals} != {
+                k: current_props.get(k) for k in list(desired_properties.keys()) + list(removals.keys())
+            }:
+                if current_state != "DISABLED":
                     client.disable_controller_service(service_component["id"])
-                    _wait_for_state(client, service_component["id"], "DISABLED")
+                    _wait_for_state(client, service_component["id"], "DISABLED", timeout=30.0)
                     service_entity = client.get_controller_service(service_component["id"])
+                    current_state = service_entity["component"].get("state")
+                properties_payload = dict(desired_properties)
+                properties_payload.update(removals)
                 update_body = {
                     "revision": service_entity["revision"],
                     "component": {
                         "id": service_component["id"],
-                        "properties": desired_properties,
+                        "properties": properties_payload,
                     },
                 }
                 client._client.put(
                     f"/controller-services/{service_component['id']}",
                     json=update_body,
                 ).raise_for_status()
-                if reenable_after_update:
-                    client.enable_controller_service(service_component["id"])
+                current_state = "DISABLED"
 
         service_id = entry.id
         key_to_id[entry.key] = service_id
@@ -180,7 +238,7 @@ def clear_manifest_service_ids() -> None:
         _save_manifest_entries(entries)
 
 
-def _wait_for_state(client: NiFiClient, service_id: str, expected_state: str, timeout: float = 5.0) -> None:
+def _wait_for_state(client: NiFiClient, service_id: str, expected_state: str, timeout: float = 30.0) -> None:
     deadline = time.time() + timeout
     while True:
         entity = client.get_controller_service(service_id)
@@ -194,7 +252,7 @@ def _wait_for_state(client: NiFiClient, service_id: str, expected_state: str, ti
         time.sleep(0.2)
 
 
-def _wait_for_stable_state(client: NiFiClient, service_id: str, timeout: float = 5.0) -> str:
+def _wait_for_stable_state(client: NiFiClient, service_id: str, timeout: float = 30.0) -> str:
     deadline = time.time() + timeout
     while True:
         entity = client.get_controller_service(service_id)

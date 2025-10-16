@@ -1,3 +1,20 @@
 {
-  "controller_services": []
+  "controller_services": [
+    {
+      "key": "json-reader",
+      "name": "JsonTreeReader",
+      "type": "org.apache.nifi.json.JsonTreeReader",
+      "properties": {
+        "schema-access-strategy": "infer-schema"
+      }
+    },
+    {
+      "key": "json-writer",
+      "name": "JsonRecordSetWriter",
+      "type": "org.apache.nifi.json.JsonRecordSetWriter",
+      "properties": {
+        "schema-write-strategy": "no-schema"
+      }
+    }
+  ]
 }
