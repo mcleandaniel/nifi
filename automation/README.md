@@ -40,7 +40,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
    nifi-automation flow-summary
    nifi-automation deploy-flow flows/trivial.yaml
   nifi-automation controller-services-report --format markdown
-  nifi-automation controller-services-report -f json --log-level DEBUG
+  nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
    ```
 
 5. **Run tests**  
@@ -77,6 +77,7 @@ The integration tests assume NiFi is available at `https://localhost:8443/nifi-a
   ```
 - Avoid mixing the repo-root `.venv` with `automation/.venv`; choose one and stick with it. The project defaults to `automation/.venv`.
 - When switching between shells/sessions, check `pwd` first. If you need to run commands from the repo root, prefix them with `cd automation && ...` to keep installs and test runs aligned.
+- If repeated changes keep failing (looping), fall back to the focused workflow: purge NiFi, run the standalone controller-service provisioning test, and use the scripted curl commands to inspect the state before attempting broader flow deployments again.
 
 CLI options still override configuration at runtime. Settings are also loaded from
 an `.env` file located at the repository root—useful when running commands from

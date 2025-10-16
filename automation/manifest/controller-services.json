@@ -13,7 +13,7 @@
       "name": "JsonRecordSetWriter",
       "type": "org.apache.nifi.json.JsonRecordSetWriter",
       "properties": {
-        "schema-write-strategy": "no-schema"
+        "Schema Write Strategy": "no-schema"
       }
     }
   ]

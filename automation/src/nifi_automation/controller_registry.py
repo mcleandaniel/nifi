@@ -7,7 +7,8 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
 from .client import NiFiClient
 
@@ -74,55 +75,78 @@ def _save_manifest_entries(entries: List[ControllerServiceEntry]) -> None:
         json.dump(payload, fp, indent=2)
 
 
-def _canonicalize_properties(
+def _fetch_service_descriptors(client: NiFiClient, entry: ControllerServiceEntry) -> Dict[str, Any]:
+    bundle = entry.bundle
+    if not bundle:
+        response = client._client.get("/flow/controller-service-types")
+        response.raise_for_status()
+        for item in response.json().get("controllerServiceTypes", []):
+            if item.get("type") == entry.type:
+                bundle = item.get("bundle")
+                break
+    if not bundle:
+        return {}
+
+    encoded_type = quote(entry.type, safe="")
+    path = (
+        f"/flow/controller-service-definition/"
+        f"{bundle.get('group')}/{bundle.get('artifact')}/{bundle.get('version')}/{encoded_type}"
+    )
+    response = client._client.get(path)
+    response.raise_for_status()
+    definition = response.json() or {}
+    return definition.get("propertyDescriptors") or {}
+
+
+def _slug(text: Optional[str]) -> Optional[str]:
+    if text is None:
+        return None
+    return "".join(ch.lower() for ch in text if ch.isalnum())
+
+
+def _normalise_properties(
     properties: Dict[str, str],
     descriptors: Dict[str, Any],
-) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Translate manifest property keys/values to NiFi canonical forms.
-
-    Returns a tuple of (canonical_properties, removals) where removals are the
-    original, non-canonical keys that should be cleared from the service.
-    """
-
-    canonical: Dict[str, str] = {}
-    removals: Dict[str, str] = {}
+    *,
+    prefer_display: bool = False,
+) -> Dict[str, str]:
+    """Map arbitrary manifest keys onto NiFi's descriptor keys (usually display names)."""
 
     if not properties:
-        return canonical, removals
+        return {}
 
-    # Build lookup map for descriptor by both canonical name and display name
-    descriptor_index: Dict[str, Dict[str, Any]] = {}
-    for key, descriptor in (descriptors or {}).items():
-        name = descriptor.get("name") or key
-        descriptor_index[name] = descriptor
+    alias_map: Dict[str, tuple[str, Dict[str, Any]]] = {}
+    for descriptor_key, descriptor in (descriptors or {}).items():
+        target_key = descriptor_key
         display_name = descriptor.get("displayName")
-        if display_name:
-            descriptor_index[display_name] = descriptor
+        if prefer_display and display_name:
+            target_key = display_name
+        aliases = {
+            descriptor_key,
+            descriptor.get("name"),
+            display_name,
+            _slug(descriptor_key),
+            _slug(descriptor.get("name")),
+            _slug(display_name),
+        }
+        for alias in filter(None, aliases):
+            alias_map[alias] = (target_key, descriptor)
 
+    normalised: Dict[str, str] = {}
     for raw_key, raw_value in properties.items():
-        descriptor = descriptor_index.get(raw_key)
-        canonical_key = raw_key
-        canonical_value = raw_value
-
-        if descriptor:
-            canonical_key = descriptor.get("name") or canonical_key
-
-            allowable = descriptor.get("allowableValues") or []
-            for item in allowable:
-                allowed = item.get("allowableValue") or {}
-                display = allowed.get("displayName")
-                value = allowed.get("value")
-                if raw_value == display:
-                    canonical_value = value
-                    break
-
-            display_name = descriptor.get("displayName")
-            if display_name and display_name != canonical_key:
-                removals[display_name] = ""
-
-        canonical[canonical_key] = canonical_value
-
-    return canonical, removals
+        mapping = alias_map.get(raw_key) or alias_map.get(_slug(raw_key))
+        if not mapping:
+            normalised[raw_key] = raw_value
+            continue
+        target_key, descriptor = mapping
+        value = raw_value
+        for item in descriptor.get("allowableValues") or []:
+            allowable = item.get("allowableValue") or {}
+            if raw_value == allowable.get("displayName"):
+                value = allowable.get("value")
+                break
+        normalised[target_key] = value
+    return normalised
 
 
 def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
@@ -157,12 +181,14 @@ def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
             manifest_updated = True
 
         if service_component is None:
+            descriptors = _fetch_service_descriptors(client, entry)
+            normalised_props = _normalise_properties(entry.properties, descriptors, prefer_display=True)
             service = client.create_controller_service(
                 parent_id="root",
                 name=entry.name,
                 type_name=entry.type,
                 bundle=entry.bundle,
-                properties=entry.properties,
+                properties=normalised_props,
             )
             entry.id = service["id"]
             manifest_updated = True
@@ -173,26 +199,34 @@ def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
             if current_state in {"ENABLING", "DISABLING"}:
                 current_state = _wait_for_stable_state(client, service_component["id"])
                 service_entity = client.get_controller_service(service_component["id"])
-            desired_properties = entry.properties or {}
             component = service_entity["component"]
             descriptors = component.get("descriptors") or {}
-            desired_properties, removals = _canonicalize_properties(desired_properties, descriptors)
             current_props = component.get("properties") or {}
-            if desired_properties and {**desired_properties, **removals} != {
-                k: current_props.get(k) for k in list(desired_properties.keys()) + list(removals.keys())
-            }:
+            desired_properties = _normalise_properties(entry.properties, descriptors)
+
+            update_payload = dict(current_props)
+            changed = False
+            for key, value in desired_properties.items():
+                if update_payload.get(key) != value:
+                    update_payload[key] = value
+                    changed = True
+
+            for key in list(update_payload.keys()):
+                if key not in descriptors and key not in desired_properties:
+                    update_payload.pop(key, None)
+                    changed = True
+
+            if changed:
                 if current_state != "DISABLED":
                     client.disable_controller_service(service_component["id"])
                     _wait_for_state(client, service_component["id"], "DISABLED", timeout=30.0)
                     service_entity = client.get_controller_service(service_component["id"])
                     current_state = service_entity["component"].get("state")
-                properties_payload = dict(desired_properties)
-                properties_payload.update(removals)
                 update_body = {
                     "revision": service_entity["revision"],
                     "component": {
                         "id": service_component["id"],
-                        "properties": properties_payload,
+                        "properties": update_payload,
                     },
                 }
                 client._client.put(

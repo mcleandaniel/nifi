@@ -126,6 +126,8 @@ The writer also inherits all schema access descriptors; the same canonical value
 
 When a property’s canonical key contains spaces (e.g., `Schema Write Strategy`, `Schema Cache`, `Pretty Print JSON`), NiFi expects that exact string in the JSON payload. The manifest helper must therefore map hyphenated or snake_case keys to those canonical names before issuing REST calls.
 
+> **Required vs. default values:** NiFi’s descriptors often mark properties as `required(true)` *and* supply a `defaultValue`. This means the component ships with a safe baseline (e.g., `ZendeskRecordSink.CACHE_SIZE` defaults to `"1000"`) but will still refuse to enable if the field is cleared. The controller-service report mirrors this reality: a property can appear in `requiredProperties` even though a default is present.
+
 ---
 
 ## Controller Service Update Contract (REST)

@@ -8,7 +8,10 @@ import pytest
 from nifi_automation.auth import obtain_access_token
 from nifi_automation.config import build_settings
 from nifi_automation.client import NiFiClient
-from nifi_automation.controller_registry import ensure_root_controller_services
+from nifi_automation.controller_registry import (
+    clear_manifest_service_ids,
+    ensure_root_controller_services,
+)
 from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec
 
 
@@ -154,3 +157,31 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
         else:
             seen_positions[key] = component.get("name")
     assert not overlaps, f"Overlapping processors detected: {overlaps}"
+
+def test_create_json_record_services(nifi_token):
+    """Provision JsonTreeReader/JsonRecordSetWriter and verify canonical properties only remain."""
+
+    settings, token = nifi_token
+    with NiFiClient(settings, token) as client:
+        purge_root(client)
+        clear_manifest_service_ids()
+        service_map = ensure_root_controller_services(client)
+
+        reader_id = service_map["json-reader"]
+        writer_id = service_map["json-writer"]
+
+        reader = client.get_controller_service(reader_id)
+        reader_component = reader["component"]
+        assert reader_component["state"] == "ENABLED"
+        reader_props = reader_component.get("properties") or {}
+        assert "schema-access-strategy" in reader_props
+        assert reader_props.get("Schema Access Strategy") in (None, ""), reader_props
+        assert not reader_component.get("validationErrors"), reader_component.get("validationErrors")
+
+        writer = client.get_controller_service(writer_id)
+        writer_component = writer["component"]
+        assert writer_component["state"] == "ENABLED"
+        writer_props = writer_component.get("properties") or {}
+        assert "schema-write-strategy" in writer_props, writer_props
+        assert writer_props.get("Schema Write Strategy") in (None, ""), writer_props
+        assert not writer_component.get("validationErrors"), writer_component.get("validationErrors")
