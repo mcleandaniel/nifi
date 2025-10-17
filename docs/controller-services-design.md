@@ -2,8 +2,9 @@
 
 This document captures the end-to-end plan for provisioning and maintaining
 controller services used by NiFi automation flows. It builds on the exploratory
-notes in `controller-services-detailed-notes.md` and formalises the behaviour we
-expect from `ensure_root_controller_services`.
+notes in `controller-services-detailed-notes.md` and the regression post-mortem in
+`controller-services-bug.md`, formalising the behaviour we expect from
+`ensure_root_controller_services`.
 
 ## Objectives
 - Treat the controller service manifest as the single source of truth for all
@@ -66,6 +67,8 @@ expect from `ensure_root_controller_services`.
   variants) to prevent lingering validation warnings.
 - Preserve empty strings for explicitly cleared properties; omit keys only when
   the descriptor lacks defaults and the manifest does not supply a value.
+Refer to `controller-services-detailed-notes.md` for the canonical property/allowable
+value tables that inform these conversions.
 
 ## Error Handling
 - Wrap httpx `HTTPStatusError` instances in domain-specific messages so CLI
@@ -76,14 +79,22 @@ expect from `ensure_root_controller_services`.
   hangs when NiFi cannot reach the target state.
 
 ## Testing & Tooling
-- Unit tests should cover property normalisation edge cases, bundle resolution,
-  and manifest persistence (see TODO list in `controller-services-detailed-notes.md`).
-- Focused integration test (`tests/integration/test_live_nifi.py`) should:
-  1. Purge root PG.
-  2. Run `ensure_root_controller_services`.
-  3. Assert required services exist, are enabled, and have no validation errors.
-- Utility script `automation/scripts/provision_json_services.py` exercises the
-  workflow against a live NiFi instance for manual diagnostics.
+- Unit coverage lives in `tests/test_controller_registry.py`, asserting:
+  - Display-name aliases and slug variants resolve to canonical property keys.
+  - Allowable value display strings collapse to canonical values.
+  - Manifest round-tripping preserves UUIDs, bundle hints, and properties.
+- Integration coverage (`tests/integration/test_live_nifi.py::test_create_json_record_services`)
+  purges root, provisions services, verifies NiFi enables them without validation
+  errors, and confirms the manifest persists canonical keys only.
+- Utility script `automation/scripts/provision_json_services.py` still exercises
+  the workflow against a live NiFi instance for manual diagnostics.
+
+## Reference Material
+- `controller-services-bug.md` – root-cause analysis of the original 400 errors when
+  display-name keys were sent to NiFi.
+- `controller-services-detailed-notes.md` – canonical property descriptor tables and
+  troubleshooting flow used by this design.
+
 
 ## Roadmap & Open Questions
 - **Scoped services**: extend automation to manage controller services within

@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from pathlib import Path
@@ -9,6 +10,7 @@ from nifi_automation.auth import obtain_access_token
 from nifi_automation.config import build_settings
 from nifi_automation.client import NiFiClient
 from nifi_automation.controller_registry import (
+    MANIFEST_PATH,
     clear_manifest_service_ids,
     ensure_root_controller_services,
 )
@@ -185,3 +187,12 @@ def test_create_json_record_services(nifi_token):
         assert "schema-write-strategy" in writer_props, writer_props
         assert writer_props.get("Schema Write Strategy") in (None, ""), writer_props
         assert not writer_component.get("validationErrors"), writer_component.get("validationErrors")
+
+        with MANIFEST_PATH.open("r", encoding="utf-8") as fp:
+            manifest_payload = json.load(fp)
+
+        for entry in manifest_payload.get("controller_services", []):
+            assert entry.get("id"), f"Manifest entry missing ID: {entry}"
+            props = entry.get("properties") or {}
+            assert "Schema Write Strategy" not in props
+            assert "Schema Access Strategy" not in props
