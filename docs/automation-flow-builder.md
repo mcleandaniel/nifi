@@ -198,6 +198,8 @@ Planned enhancements:
   3. Keep stubs disabled by default; future phases can wire them to concrete implementations or allow operators to supply overrides via the spec.
 - **Overrides**: If the spec already provides a value (interpreted as an existing controller service ID or reference), skip stub creation and preserve the supplied value.
 - **Lifecycle**: During delete/redeploy of a managed process group, associated stubs are also removed since they live under the same PG scope.
+- For the root-level provisioning workflow that feeds these stubs, see
+  [`controller-services-design.md`](controller-services-design.md).
 
 ### 5.3 Auto-Termination Inference
 - **Relationship catalog**: Use processor metadata (`relationships`) to understand all possible relationships and which are auto-terminated by default.

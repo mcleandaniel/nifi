@@ -50,3 +50,72 @@ curl -sk -H "Authorization: Bearer $TOKEN" \
   | jq '.component | {name, state, validationErrors, properties}'
 ```
 Replace `<service-id>` with the UUID reported in the first command.
+
+---
+
+## Canonical Descriptor Reference
+
+These tables collect the canonical property keys NiFi expects for the JSON reader/writer controller services referenced by `flows/simple.yaml`. Use these values when updating the manifest or when comparing REST payloads.
+
+### Shared Schema Access Properties
+
+| Canonical Key | UI Display | Required? | Default | Allowable Values (canonical → display) | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `schema-access-strategy` | Schema Access Strategy | ✔ | `schema-name` | `schema-name` → Use 'Schema Name' Property, `schema-text-property` → Use 'Schema Text' Property, `schema-reference-reader` → Inherit Record Schema From Upstream | Drives which dependent properties NiFi requires. |
+| `schema-registry` | Schema Registry | contextual | — | Controller service ref | Required when strategy is `schema-name` or `schema-reference-reader`. |
+| `schema-name` | Schema Name | contextual | `${schema.name}` | string | Required when strategy is `schema-name`. |
+| `schema-text` | Schema Text | contextual | `${avro.schema}` | string | Required when strategy is `schema-text-property`. |
+| `schema-reference-reader` | Schema Reference Reader | contextual | — | Controller service ref | Required when strategy is `schema-reference-reader`. |
+| `schema-branch` | Schema Branch | optional | — | string | Only valid with strategy `schema-name`. |
+| `schema-version` | Schema Version | optional | — | string | Only valid with strategy `schema-name`. |
+
+### JsonTreeReader-Specific Properties
+
+| Canonical Key | UI Display | Required? | Default | Allowable Values (canonical → display) | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `starting-field-strategy` | Starting Field Strategy | ✔ | `whole-flowfile` | `whole-flowfile` → Whole FlowFile, `nested-field` → Nested Field | `nested-field` requires `starting-field-name`. |
+| `starting-field-name` | Starting Field Name | contextual | — | string | Required when `starting-field-strategy` is `nested-field`. |
+| `date-format` | Date Format | optional | — | string | Inherited from base reader. |
+| `time-format` | Time Format | optional | — | string | Inherited. |
+| `timestamp-format` | Timestamp Format | optional | — | string | Inherited. |
+
+### JsonRecordSetWriter-Specific Properties
+
+| Canonical Key | UI Display | Required? | Default | Allowable Values (canonical → display) | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `schema-write-strategy` | Schema Write Strategy | ✔ | `no-schema` | `no-schema` → Do Not Write Schema, `hwx-schema-ref` → Hortonworks Schema Reference, `embed-avro-schema` → Embed Avro Schema | Key field NiFi validates during enablement. |
+| `suppress-nulls` | Suppress Nulls | optional | `false` | `true`, `false` | Boolean string. |
+| `compression-format` | Compression Format | optional | `none` | `none`, `gzip`, `bzip2`, `lz4`, `snappy` | Matches `CompressionFormat` enum. |
+| `date-format` | Date Format | optional | `yyyy-MM-dd` | string | Inherited writer option. |
+| `time-format` | Time Format | optional | `HH:mm:ss.SSS` | string | Inherited writer option. |
+| `timestamp-format` | Timestamp Format | optional | `yyyy-MM-dd HH:mm:ss.SSS` | string | Inherited writer option. |
+
+### Canonical Value Mapping Example
+
+If the manifest specifies:
+
+```
+Schema Access Strategy: Infer Schema
+schema-name: my-schema
+```
+
+The REST payload we send must be:
+
+```json
+{
+  "schema-access-strategy": "infer-schema",
+  "schema-name": "my-schema"
+}
+```
+
+Note the lowercase canonical keys and allowable value string (`infer-schema`) exactly match NiFi's descriptor definitions.
+
+---
+
+## Automation Follow-Ups
+
+- ✅ Update `manifest/controller-services.json` to emit canonical keys/values (done).
+- ✅ Extend `_normalise_properties` in `controller_registry.py` to translate display-name keys and strip stale aliases (done).
+- ☐ Write a focused unit test for `_normalise_properties` covering display-name inputs and allowable value translation.
+- ☐ Extend the flow manifest (or per-flow metadata) so `json-reader`/`json-writer` dependencies are guaranteed before deploying `flows/simple.yaml`.
+- ☐ Consider a validation utility that diff-checks controller service properties after enablement to catch regression drift.

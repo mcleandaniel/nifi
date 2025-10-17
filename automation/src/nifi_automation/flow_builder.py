@@ -75,6 +75,33 @@ def _normalize_property_value(value: Any) -> str:
     return str(value)
 
 
+def _slug(text: Optional[str]) -> Optional[str]:
+    if text is None:
+        return None
+    return "".join(ch.lower() for ch in text if ch.isalnum())
+
+
+def _build_property_alias_map(descriptors: Mapping[str, Any]) -> Dict[str, str]:
+    alias_map: Dict[str, str] = {}
+    for key, descriptor in (descriptors or {}).items():
+        if not descriptor:
+            continue
+        aliases = {
+            key,
+            key.lower() if isinstance(key, str) else key,
+            descriptor.get("name"),
+            descriptor.get("displayName"),
+        }
+        slug_inputs = set(filter(None, aliases))
+        aliases |= {_slug(item) for item in slug_inputs}
+        for alias in filter(None, aliases):
+            alias_str = alias if isinstance(alias, str) else str(alias)
+            alias_lower = alias_str.lower()
+            if alias_lower not in alias_map:
+                alias_map[alias_lower] = key
+    return alias_map
+
+
 def _normalize_allowable_value(
     processor_name: str,
     property_name: str,
@@ -105,13 +132,18 @@ def validate_and_normalize_properties(
 ) -> Dict[str, str]:
     normalized: Dict[str, str] = {}
     descriptors = descriptors or {}
+    alias_map = _build_property_alias_map(descriptors)
+    seen_canonical: Set[str] = set()
 
     for key, raw_value in properties.items():
-        descriptor = descriptors.get(key)
+        lookup_key = key if isinstance(key, str) else str(key)
+        descriptor_key = alias_map.get(lookup_key.lower())
+        descriptor = descriptors.get(descriptor_key) if descriptor_key else descriptors.get(lookup_key)
         value = _normalize_property_value(raw_value)
+        canonical_key = descriptor_key or lookup_key
         if descriptor is None:
             if supports_dynamic_properties:
-                normalized[key] = value
+                normalized[lookup_key] = value
                 continue
             raise FlowDeploymentError(
                 f"Processor '{processor_name}' ({processor_type}) does not define property '{key}'"
@@ -119,7 +151,12 @@ def validate_and_normalize_properties(
         allowable = descriptor.get("allowableValues") or []
         if allowable:
             value = _normalize_allowable_value(processor_name, key, value, allowable)
-        normalized[key] = value
+        if canonical_key in seen_canonical:
+            raise FlowDeploymentError(
+                f"Processor '{processor_name}' ({processor_type}) has multiple definitions for property '{canonical_key}'"
+            )
+        seen_canonical.add(canonical_key)
+        normalized[canonical_key] = value
 
     for key, descriptor in descriptors.items():
         if not descriptor:

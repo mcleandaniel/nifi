@@ -104,3 +104,44 @@ def test_compute_auto_terminate_relationships_rejects_connected_auto_terminate()
     connected = {"success"}
     with pytest.raises(FlowDeploymentError):
         compute_auto_terminate_relationships("TestProc", ["success"], relationships, connected)
+
+
+def test_validate_and_normalize_properties_accepts_display_name_alias():
+    descriptors = {
+        "record-reader": {
+            "displayName": "Record Reader",
+        },
+        "record-writer": {
+            "displayName": "Record Writer",
+        },
+    }
+    props = {"Record Reader": "reader-service", "record-writer": "writer-service"}
+    normalized = validate_and_normalize_properties(
+        "AliasProc",
+        "org.example.RecordProc",
+        props,
+        descriptors,
+        supports_dynamic_properties=False,
+    )
+    assert normalized["record-reader"] == "reader-service"
+    assert normalized["record-writer"] == "writer-service"
+
+
+def test_validate_and_normalize_properties_detects_duplicate_aliases():
+    descriptors = {
+        "record-reader": {
+            "displayName": "Record Reader",
+        },
+    }
+    props = {
+        "record-reader": "reader-service",
+        "Record Reader": "reader-service-2",
+    }
+    with pytest.raises(FlowDeploymentError):
+        validate_and_normalize_properties(
+            "AliasProc",
+            "org.example.RecordProc",
+            props,
+            descriptors,
+            supports_dynamic_properties=False,
+        )
