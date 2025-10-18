@@ -116,11 +116,32 @@ When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`),
 
 If the deploy fails because services already exist, purge again—`ensure_root_controller_services` intentionally refuses to reconcile on a dirty instance.
 
+## Diagnostics
+- `scripts/fetch_invalid_processors.py` – lists processors that NiFi currently marks as invalid, including
+  the validation errors reported by NiFi. Pass `--json` for machine-readable output.
+
 ## Flow Specifications
-- Declarative specs live under `flows/`. The canonical example is `flows/NiFi_Flow.yaml`, which
-  provisions a root process group named `NiFi Flow` with two child groups: `TrivialFlow` and
-  `SimpleWorkflow`.
+- Declarative specs live under `flows/`. Examples:
+  - `flows/NiFi_Flow.yaml`: deploys both `TrivialFlow` and `SimpleWorkflow` beneath the `NiFi Flow` root.
+  - `flows/trivial.yaml`, `flows/simple.yaml`, `flows/medium.yaml`, `flows/complex.yaml`: single-flow specs that
+    also target the `NiFi Flow` root and create the respective child process group.
 - `nifi-automation deploy-flow flows/NiFi_Flow.yaml` recreates the entire hierarchy each time.
+
+To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
+
+```bash
+cd automation
+scripts/run_integration_suite.sh flows/medium.yaml
+```
+
+For multiple flows:
+
+```bash
+cd automation
+scripts/run_integration_suite.sh flows/medium.yaml flows/complex.yaml
+```
+
+Multiple specs can be supplied (comma-separated or space-separated); the script sets `NIFI_FLOW_SPECS` for the tests.
 
 ## Next Steps
 - Add specs for the Simple/Medium/Complex workflows in `flows/` and deploy them

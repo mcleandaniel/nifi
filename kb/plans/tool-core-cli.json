@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2025-10-18T00:00:00Z",
+  "generated_at": "2025-10-18T16:00:00Z",
   "repo_root": ".",
   "scope": "tool",
   "tool": {
@@ -8,177 +8,207 @@
     "name": "NiFi Toolkit CLI",
     "kind": "cli",
     "entrypoints": [
+      "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/CLIMain.java",
       "nifi-toolkit/nifi-toolkit-assembly/src/main/resources/bin/cli.sh",
-      "nifi-toolkit/nifi-toolkit-assembly/src/main/resources/bin/cli.bat",
-      "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/CLIMain.java"
+      "nifi-toolkit/nifi-toolkit-assembly/src/main/assembly/toolkit.xml"
     ],
-    "grouped_tools": ["toolkit-cli", "registry-cli"]
+    "grouped_tools": []
   },
   "topics": [
     {
-      "id": "toolkit-overview-and-installation",
-      "title": "Overview and Installation",
-      "summary": "Describe the NiFi Toolkit CLI distribution, installation steps, and environment prerequisites.",
+      "id": "cli-overview-and-installation",
+      "title": "CLI Overview and Installation",
+      "summary": "Explain toolkit packaging, installation prerequisites, and how to launch the CLI on different platforms.",
       "category": "development",
       "recommended_sources": [
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
         "nifi-toolkit/nifi-toolkit-assembly/",
-        "README.md"
+        "nifi-assembly/src/main/assembly/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
       ],
       "dependencies": [],
       "priority": "high",
       "tags": ["installation", "toolkit", "cli"],
-      "research_request": "Explain how to install the NiFi Toolkit CLI, set up environment variables, and verify the install."
+      "research_request": "Document how to install and start the NiFi Toolkit CLI from packaged distributions."
     },
     {
-      "id": "toolkit-cli-modes",
-      "title": "CLI Modes and Usage",
-      "summary": "Detail interactive and standalone modes, command syntax, and help discovery.",
+      "id": "cli-authentication-and-targets",
+      "title": "Authentication and Target Config",
+      "summary": "Describe how the CLI authenticates to NiFi and NiFi Registry, including keystore and token options.",
+      "category": "security",
+      "recommended_sources": [
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "docs/design-log.md"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["authentication", "config", "security"],
+      "research_request": "Explain authentication options for the NiFi Toolkit CLI and how to configure targets securely."
+    },
+    {
+      "id": "core-command-reference",
+      "title": "Core Command Reference",
+      "summary": "Provide usage for primary CLI commands that manage flows, controller services, and process groups.",
       "category": "development",
       "recommended_sources": [
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/",
-        "nifi-toolkit/nifi-toolkit-cli/src/main/resources/nifi-banner.txt"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["commands", "interactive", "usage"],
-      "research_request": "Document CLI invocation patterns, interactive shell features, and command discovery aids."
-    },
-    {
-      "id": "toolkit-authentication-and-context",
-      "title": "Authentication and Context",
-      "summary": "Explain login strategies, proxy identities, and session persistence within the CLI.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/session/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/"
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/command/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "docs/design-log.md"
       ],
       "dependencies": [],
       "priority": "high",
-      "tags": ["authentication", "session", "proxy"],
-      "research_request": "Summarize authentication options, session commands, and proxy handling in the NiFi CLI."
+      "tags": ["commands", "flows", "usage"],
+      "research_request": "Create a reference for the most common NiFi Toolkit CLI commands managing flows and controller services."
     },
     {
-      "id": "toolkit-cluster-management",
-      "title": "Cluster Management Commands",
-      "summary": "Cover commands for connecting, disconnecting, and monitoring NiFi cluster nodes.",
-      "category": "operations",
+      "id": "registry-commands",
+      "title": "Registry Commands",
+      "summary": "Document CLI subcommands that interact with NiFi Registry for buckets, flows, and versions.",
+      "category": "development",
       "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/command/nifi/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster/"
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/command/registry/",
+        "nifi-registry/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
       ],
       "dependencies": [],
       "priority": "medium",
-      "tags": ["cluster", "nodes", "operations"],
-      "research_request": "Document NiFi CLI commands for managing cluster nodes, status checks, and troubleshooting."
+      "tags": ["registry", "versioning", "commands"],
+      "research_request": "Detail NiFi Toolkit CLI support for NiFi Registry operations and typical workflows."
     },
     {
-      "id": "toolkit-flow-versioning",
-      "title": "Flow Versioning Commands",
-      "summary": "Explain commands for importing, exporting, and promoting versioned flows with Registry.",
-      "category": "operations",
+      "id": "access-management-commands",
+      "title": "Access Management Commands",
+      "summary": "Explain commands that manage users, groups, and policies through the CLI.",
+      "category": "security",
       "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/command/registry/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc"
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/command/nifi/",
+        "nifi-framework-bundle/nifi-framework/nifi-authorizer/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["access", "policies", "cli"],
+      "research_request": "Document CLI commands for managing NiFi users, groups, and authorization policies."
+    },
+    {
+      "id": "flow-template-operations",
+      "title": "Flow Template Operations",
+      "summary": "Describe how to export, import, and manipulate flow templates and versioned flows via CLI.",
+      "category": "development",
+      "recommended_sources": [
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/command/nifi/",
+        "docs/automation-flow-builder.md",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["flows", "templates", "automation"],
+      "research_request": "Explain how the CLI handles flow templates and versioned flows, including import/export patterns."
+    },
+    {
+      "id": "tls-toolkit-usage",
+      "title": "TLS Toolkit Usage",
+      "summary": "Explain TLS toolkit subcommands for generating certificates and securing deployments.",
+      "category": "security",
+      "recommended_sources": [
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/tls/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-docker/"
       ],
       "dependencies": [],
       "priority": "high",
-      "tags": ["registry", "flows", "versioning"],
-      "research_request": "Provide step-by-step usage of CLI commands for flow version import/export and promotion."
+      "tags": ["tls", "certificates", "security"],
+      "research_request": "Document TLS toolkit functionality for certificate generation and distribution."
     },
     {
-      "id": "toolkit-parameter-management",
-      "title": "Parameter and Context Management",
-      "summary": "Detail commands that manage parameter contexts, providers, and inheritance across flows.",
+      "id": "clustering-commands",
+      "title": "Clustering Commands",
+      "summary": "Detail commands used to interact with clustered NiFi deployments including status and node management.",
       "category": "operations",
       "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/command/nifi/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "docs/controller-services-design.md"
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/command/nifi/",
+        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
       ],
       "dependencies": [],
       "priority": "medium",
-      "tags": ["parameters", "contexts", "configuration"],
-      "research_request": "Explain CLI commands for parameter contexts, including creation, inheritance, and provider interactions."
+      "tags": ["cluster", "operations", "cli"],
+      "research_request": "Explain CLI support for monitoring and managing NiFi clusters."
     },
     {
-      "id": "toolkit-registry-automation",
-      "title": "Registry Automation",
-      "summary": "Describe automation workflows for bucket management, user policies, and artifact handling.",
+      "id": "cli-configuration-files",
+      "title": "CLI Configuration Files",
+      "summary": "Describe configuration file format, environment variables, and profile support for the toolkit.",
       "category": "operations",
       "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/command/registry/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-web-api/src/main/java/"
+        "nifi-toolkit/nifi-toolkit-cli/src/main/resources/",
+        "docs/design-log.md",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
       ],
       "dependencies": [],
       "priority": "medium",
-      "tags": ["automation", "registry", "policies"],
-      "research_request": "Summarize CLI support for automating NiFi Registry buckets, policies, and artifact workflows."
+      "tags": ["configuration", "profiles", "cli"],
+      "research_request": "Document CLI configuration file structure and how to manage profiles or environment overrides."
     },
     {
-      "id": "toolkit-nar-repository",
-      "title": "NAR Repository Management",
-      "summary": "Explain commands for uploading, listing, and managing NAR bundles via the CLI.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/command/nifi/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-extension-bundles/"
-      ],
-      "dependencies": [],
-      "priority": "low",
-      "tags": ["nar", "bundles", "repository"],
-      "research_request": "Document CLI commands for managing NAR artifacts and coordinating with NiFi nodes."
-    },
-    {
-      "id": "toolkit-security-and-tls",
-      "title": "Security and TLS Tooling",
-      "summary": "Detail CLI support for TLS generation, certificate management, and secure configuration.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-toolkit/nifi-toolkit-client/src/main/java/",
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["tls", "security", "certificates"],
-      "research_request": "Explain how to use the toolkit CLI to generate certificates, encrypt properties, and configure TLS."
-    },
-    {
-      "id": "toolkit-diagnostics-and-logging",
-      "title": "Diagnostics and Logging",
-      "summary": "Cover logging options, verbose modes, and troubleshooting patterns when commands fail.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/core/",
-        "nifi-toolkit/nifi-toolkit-cli/src/main/resources/nifi-banner.txt",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "low",
-      "tags": ["diagnostics", "logging", "troubleshooting"],
-      "research_request": "Provide troubleshooting tips, logging controls, and diagnostics commands for the CLI."
-    },
-    {
-      "id": "toolkit-scripting-and-automation",
+      "id": "scripting-and-automation",
       "title": "Scripting and Automation",
-      "summary": "Explain how to script CLI commands, manage sessions programmatically, and integrate into CI pipelines.",
-      "category": "development",
+      "summary": "Provide guidance on running CLI commands in scripts, batch operations, and CI pipelines.",
+      "category": "operations",
       "recommended_sources": [
         "nifi-toolkit/nifi-toolkit-cli/src/main/java/",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        ".github/workflows/ci-workflow.yml"
+        "docs/design-log.md",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
       ],
       "dependencies": [],
-      "priority": "medium",
-      "tags": ["automation", "scripting", "ci"],
-      "research_request": "Describe approaches for scripting NiFi CLI commands and incorporating them into automation pipelines."
+      "priority": "low",
+      "tags": ["automation", "scripts", "cli"],
+      "research_request": "Explain best practices for automating NiFi Toolkit CLI usage in scripts and pipelines."
+    },
+    {
+      "id": "logging-and-debugging",
+      "title": "Logging and Debugging",
+      "summary": "Explain how to enable verbose logging, troubleshoot failures, and interpret error messages.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-docker/"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["logging", "debug", "cli"],
+      "research_request": "Document logging controls and troubleshooting techniques for NiFi Toolkit CLI executions."
+    },
+    {
+      "id": "error-handling-and-exit-codes",
+      "title": "Error Handling and Exit Codes",
+      "summary": "Describe exception handling, exit codes, and how to react to common command failures.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-toolkit/nifi-toolkit-cli/src/main/java/org/apache/nifi/toolkit/cli/impl/result/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "docs/design-log.md"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["errors", "exit-codes", "cli"],
+      "research_request": "Explain NiFi Toolkit CLI error handling behavior and common return codes."
+    },
+    {
+      "id": "distribution-and-versioning",
+      "title": "Distribution and Versioning",
+      "summary": "Summarize how the CLI is versioned, distributed, and aligned with NiFi releases.",
+      "category": "governance",
+      "recommended_sources": [
+        "nifi-toolkit/pom.xml",
+        "nifi-manifest/",
+        "README.md"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["versioning", "release", "toolkit"],
+      "research_request": "Document version alignment and distribution channels for the NiFi Toolkit CLI."
     }
   ]
 }

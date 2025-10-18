@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2025-10-18T00:00:00Z",
+  "generated_at": "2025-10-18T16:00:00Z",
   "repo_root": ".",
   "scope": "tool",
   "tool": {
@@ -12,163 +12,166 @@
       "automation/scripts/",
       "automation/pyproject.toml"
     ],
-    "grouped_tools": ["nifi-automation-cli", "automation-scripts"]
+    "grouped_tools": [
+      "nifi-automation-cli",
+      "automation-support-scripts"
+    ]
   },
   "topics": [
     {
-      "id": "automation-suite-overview",
-      "title": "Suite Overview",
-      "summary": "Describe the automation suite goals, major commands, and how it complements NiFi operations.",
-      "category": "development",
-      "recommended_sources": [
-        "automation/README.md",
-        "automation/src/nifi_automation/",
-        "docs/automation-flow-builder.md"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["automation", "overview", "cli"],
-      "research_request": "Summarize the automation suite purpose, command families, and integration points with NiFi."
-    },
-    {
-      "id": "automation-environment-setup",
-      "title": "Environment Setup",
-      "summary": "Explain Python version requirements, UV environment management, and dependency installation.",
+      "id": "suite-overview-and-installation",
+      "title": "Suite Overview and Installation",
+      "summary": "Explain the scope of the automation suite, Python version requirements, and installation via uv or pip.",
       "category": "development",
       "recommended_sources": [
         "automation/README.md",
         "automation/pyproject.toml",
-        "docs/python-design.md"
+        "docs/automation-flow-builder.md"
       ],
       "dependencies": [],
       "priority": "high",
-      "tags": ["setup", "python", "dependencies"],
-      "research_request": "Provide instructions to configure the automation development environment, including uv and virtualenv steps."
+      "tags": ["installation", "python", "overview"],
+      "research_request": "Document how to install and initialize the NiFi REST automation suite including environment prerequisites."
     },
     {
-      "id": "automation-configuration-and-credentials",
-      "title": "Configuration and Credentials",
-      "summary": "Document how the suite loads settings from .env, environment variables, and CLI options.",
+      "id": "environment-setup",
+      "title": "Environment Setup",
+      "summary": "Detail virtual environment management, .env usage, and required environment variables for connectivity.",
       "category": "operations",
       "recommended_sources": [
+        "automation/README.md",
         "automation/src/nifi_automation/config.py",
-        "automation/src/nifi_automation/cli.py",
-        "automation/README.md"
+        "automation/.env"
       ],
       "dependencies": [],
       "priority": "high",
-      "tags": ["configuration", "credentials", "settings"],
-      "research_request": "Explain configuration resolution, credential sources, and overrides for automation commands."
+      "tags": ["environment", "config", "setup"],
+      "research_request": "Explain environment setup steps, including .env handling and required variables for the automation suite."
     },
     {
-      "id": "automation-authentication-workflows",
-      "title": "Authentication Workflows",
-      "summary": "Cover token acquisition, error handling, and integration with NiFi access endpoints.",
+      "id": "authentication-configuration",
+      "title": "Authentication Configuration",
+      "summary": "Describe how the suite authenticates against NiFi APIs, including token retrieval and TLS settings.",
       "category": "security",
       "recommended_sources": [
         "automation/src/nifi_automation/auth.py",
-        "automation/src/nifi_automation/cli.py",
-        "docs/python-design.md"
+        "automation/src/nifi_automation/config.py",
+        "automation/README.md"
       ],
       "dependencies": [],
       "priority": "high",
-      "tags": ["authentication", "token", "rest"],
-      "research_request": "Document how automation commands obtain NiFi access tokens, handle failures, and reuse credentials."
+      "tags": ["authentication", "tls", "security"],
+      "research_request": "Document authentication flows used by the automation suite, including TLS verification toggles."
     },
     {
-      "id": "automation-controller-service-provisioning",
-      "title": "Controller Service Provisioning",
-      "summary": "Explain manifest-driven controller service provisioning and failure handling logic.",
-      "category": "operations",
-      "recommended_sources": [
-        "automation/src/nifi_automation/controller_registry.py",
-        "docs/controller-services-design.md",
-        "automation/manifest/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["controller-services", "manifest", "provisioning"],
-      "research_request": "Summarize how the automation suite provisions controller services from manifests and handles validation errors."
-    },
-    {
-      "id": "automation-flow-deployment",
-      "title": "Flow Deployment",
-      "summary": "Detail deploy-flow command behavior, flow spec requirements, and success criteria.",
-      "category": "operations",
-      "recommended_sources": [
-        "automation/src/nifi_automation/flow_builder.py",
-        "automation/src/nifi_automation/cli.py",
-        "docs/flow-spec-structure.md"
-      ],
-      "dependencies": ["automation-controller-service-provisioning"],
-      "priority": "medium",
-      "tags": ["flows", "deployment", "spec"],
-      "research_request": "Explain deploy-flow execution, required spec structure, and post-deployment validation steps."
-    },
-    {
-      "id": "automation-flow-spec-format",
-      "title": "Flow Spec Format",
-      "summary": "Describe YAML/JSON schema expectations, validation, and reusable components for flow specs.",
+      "id": "flow-spec-schema",
+      "title": "Flow Specification Schema",
+      "summary": "Explain the declarative YAML structure used for flows, including required keys and validation rules.",
       "category": "development",
       "recommended_sources": [
-        "docs/flow-spec-structure.md",
-        "automation/flows/",
-        "automation/src/nifi_automation/flow_builder.py"
+        "docs/automation-flow-builder.md",
+        "flows/",
+        "automation/src/nifi_automation/service_introspect.py"
       ],
       "dependencies": [],
-      "priority": "medium",
-      "tags": ["spec", "schema", "flows"],
-      "research_request": "Document the flow spec schema, required fields, and examples for composing reusable fragments."
+      "priority": "high",
+      "tags": ["schema", "flows", "yaml"],
+      "research_request": "Describe the flow specification schema supported by the automation suite with examples."
     },
     {
-      "id": "automation-reporting-and-introspection",
-      "title": "Reporting and Introspection",
-      "summary": "Explain controller-services-report output formats, logging, and diagnostics options.",
+      "id": "deploying-flows",
+      "title": "Deploying Flows",
+      "summary": "Walk through deploying flows via CLI subcommands and helper scripts, including idempotent behavior.",
+      "category": "development",
+      "recommended_sources": [
+        "automation/src/nifi_automation/cli.py",
+        "automation/scripts/deploy_flows.py",
+        "flows/NiFi_Flow.yaml"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["deployment", "flows", "cli"],
+      "research_request": "Explain how to deploy flow specifications using the automation CLI and supporting scripts."
+    },
+    {
+      "id": "controller-service-inspection",
+      "title": "Controller Service Inspection",
+      "summary": "Detail commands that audit controller services, required properties, and reporting formats.",
       "category": "operations",
       "recommended_sources": [
         "automation/src/nifi_automation/service_introspect.py",
+        "automation/tests/",
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["controller-services", "audit", "reports"],
+      "research_request": "Document automation capabilities for inspecting controller services and generating reports."
+    },
+    {
+      "id": "purge-and-reset-workflows",
+      "title": "Purge and Reset Workflows",
+      "summary": "Describe scripts and commands used to purge NiFi environments before deployments.",
+      "category": "operations",
+      "recommended_sources": [
+        "automation/scripts/purge_nifi_root.py",
+        "automation/README.md",
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["purge", "reset", "workflow"],
+      "research_request": "Explain how the automation suite purges NiFi state and prepares clean environments."
+    },
+    {
+      "id": "configuration-management",
+      "title": "Configuration Management",
+      "summary": "Explain config layering, CLI options, and how environment variables override defaults.",
+      "category": "operations",
+      "recommended_sources": [
+        "automation/src/nifi_automation/config.py",
+        "automation/README.md",
+        "automation/src/nifi_automation/cli.py"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["configuration", "overrides", "cli"],
+      "research_request": "Describe configuration precedence for the automation CLI including .env and command-line options."
+    },
+    {
+      "id": "logging-and-diagnostics",
+      "title": "Logging and Diagnostics",
+      "summary": "Detail logging configuration, verbosity flags, and troubleshooting techniques for the suite.",
+      "category": "operations",
+      "recommended_sources": [
         "automation/src/nifi_automation/cli.py",
+        "automation/tests/",
         "automation/README.md"
       ],
       "dependencies": [],
       "priority": "medium",
-      "tags": ["reporting", "diagnostics", "services"],
-      "research_request": "Summarize report commands, output formats, and how to use them for diagnostics."
+      "tags": ["logging", "diagnostics", "cli"],
+      "research_request": "Document logging controls and diagnostic workflows for the automation suite."
     },
     {
-      "id": "automation-error-handling",
-      "title": "Error Handling and Recovery",
-      "summary": "Cover exception handling patterns, exit codes, and operator guidance on failures.",
+      "id": "error-handling-and-retries",
+      "title": "Error Handling and Retries",
+      "summary": "Explain how the suite handles API errors, retry logic, and failure reporting.",
       "category": "operations",
       "recommended_sources": [
-        "automation/src/nifi_automation/cli.py",
-        "automation/src/nifi_automation/flow_builder.py",
-        "docs/controller-services-detailed-notes.md"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["errors", "recovery", "diagnostics"],
-      "research_request": "Explain error handling strategies, exit codes, and recommended operator actions after failures."
-    },
-    {
-      "id": "automation-logging-and-observability",
-      "title": "Logging and Observability",
-      "summary": "Describe logging configuration, log levels, and integration with external observability tooling.",
-      "category": "operations",
-      "recommended_sources": [
-        "automation/src/nifi_automation/cli.py",
         "automation/src/nifi_automation/client.py",
-        "automation/README.md"
+        "automation/tests/",
+        "docs/automation-flow-builder.md"
       ],
       "dependencies": [],
-      "priority": "low",
-      "tags": ["logging", "observability", "debug"],
-      "research_request": "Provide guidance on configuring automation logging, adjusting verbosity, and collecting diagnostics."
+      "priority": "medium",
+      "tags": ["errors", "retries", "http"],
+      "research_request": "Describe error handling and retry behavior in the NiFi REST automation suite."
     },
     {
-      "id": "automation-integration-testing",
+      "id": "integration-testing-support",
       "title": "Integration Testing Support",
-      "summary": "Explain pytest setup, integration test toggles, and how to validate automation against live NiFi.",
+      "summary": "Summarize test fixtures, environment variables, and how to run the integration suite.",
       "category": "testing",
       "recommended_sources": [
         "automation/tests/",
@@ -176,24 +179,39 @@
         "docs/automation-flow-builder.md"
       ],
       "dependencies": [],
-      "priority": "medium",
+      "priority": "low",
       "tags": ["testing", "integration", "pytest"],
-      "research_request": "Describe automation test suites, integration prerequisites, and how to run them reliably."
+      "research_request": "Explain how to run and extend integration tests for the automation suite."
     },
     {
-      "id": "automation-extensibility",
-      "title": "Extensibility and Customization",
-      "summary": "Provide guidance on adding new commands, extending manifests, and structuring contributions.",
+      "id": "extensibility-and-architecture",
+      "title": "Extensibility and Architecture",
+      "summary": "Describe the internal architecture, module layout, and extension points for new commands.",
       "category": "development",
       "recommended_sources": [
         "automation/src/nifi_automation/",
         "docs/python-design.md",
-        "automation/tests/"
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["architecture", "extensibility", "python"],
+      "research_request": "Document the internal architecture of the automation suite and how to add new command modules."
+    },
+    {
+      "id": "versioning-and-release-process",
+      "title": "Versioning and Release Process",
+      "summary": "Explain version bump strategy, packaging, and publication cadence for the automation project.",
+      "category": "governance",
+      "recommended_sources": [
+        "automation/pyproject.toml",
+        "automation/manifest/",
+        "docs/design-log.md"
       ],
       "dependencies": [],
       "priority": "low",
-      "tags": ["extensibility", "commands", "contribution"],
-      "research_request": "Explain how to extend the automation suite with new commands, manifests, and tests."
+      "tags": ["versioning", "release", "governance"],
+      "research_request": "Describe how the automation suite is versioned and released, including packaging artifacts."
     }
   ]
 }

@@ -1,0 +1,47 @@
+process_group:
+  name: NiFi Flow
+  position: [0, 0]
+  process_groups:
+    - name: MediumWorkflow
+      position: [0, 0]
+      processors:
+        - id: generate
+          name: Generate FlowFile
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          position: [0, 0]
+          properties:
+            Batch Size: "1"
+            Data Format: Text
+            Custom Text: "route=success"
+        - id: route
+          name: Route On Attribute
+          type: org.apache.nifi.processors.standard.RouteOnAttribute
+          position: [400, 0]
+          properties:
+            success: "${route:equals('success')}"
+        - id: log_success
+          name: LogAttribute (Success)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [800, -200]
+        - id: log_failure
+          name: LogAttribute (Failure)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [800, 200]
+      connections:
+        - name: Generate to Route
+          source: generate
+          destination: route
+          relationships: [success]
+        - name: Route to Success Log
+          source: route
+          destination: log_success
+          relationships: [success]
+        - name: Route to Failure Log
+          source: route
+          destination: log_failure
+          relationships: [unmatched, failure]
+      auto_terminate:
+        log_success:
+          - success
+        log_failure:
+          - success

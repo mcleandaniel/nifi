@@ -2,8 +2,6 @@ process_group:
   name: NiFi Flow
   position: [0, 0]
   processors: []
-  connections: []
-  auto_terminate: {}
   process_groups:
     - name: TrivialFlow
       position: [0, 0]
@@ -23,9 +21,6 @@ process_group:
           source: generate
           destination: log
           relationships: [success]
-      auto_terminate:
-        log:
-          - success
     - name: SimpleWorkflow
       position: [800, 0]
       processors:
@@ -89,8 +84,126 @@ process_group:
           source: query
           destination: log_failure
           relationships: [failure]
+    - name: MediumWorkflow
+      position: [1600, 0]
+      processors:
+        - id: medium-generate
+          name: Generate FlowFile (Medium)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          position: [0, 0]
+          properties:
+            Batch Size: "1"
+            Data Format: Text
+            Custom Text: "route=success"
+        - id: medium-route
+          name: Route On Attribute
+          type: org.apache.nifi.processors.standard.RouteOnAttribute
+          position: [400, 0]
+          properties:
+            success: "${route:equals('success')}"
+        - id: medium-log-success
+          name: LogAttribute (Medium Success)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [800, -200]
+        - id: medium-log-failure
+          name: LogAttribute (Medium Failure)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [800, 200]
+      connections:
+        - name: Medium Generate to Route
+          source: medium-generate
+          destination: medium-route
+          relationships: [success]
+        - name: Medium Route to Success
+          source: medium-route
+          destination: medium-log-success
+          relationships: [success]
+        - name: Medium Route to Failure
+          source: medium-route
+          destination: medium-log-failure
+          relationships: [unmatched, failure]
       auto_terminate:
-        log_success:
+        medium-log-success:
           - success
-        log_failure:
+        medium-log-failure:
+          - success
+    - name: ComplexWorkflow
+      position: [2400, 0]
+      processors:
+        - id: complex-generate
+          name: GenerateRecord (Complex)
+          type: org.apache.nifi.processors.standard.GenerateRecord
+          position: [0, 0]
+          properties:
+            record-writer: json-writer
+            number-of-records: "1"
+            nullable-fields: "false"
+            null-percentage: "0.0"
+            schema-text: |
+              {
+                "type": "record",
+                "name": "reading",
+                "fields": [
+                  { "name": "sensor", "type": "string" },
+                  { "name": "reading_value", "type": "double" },
+                  { "name": "status", "type": "string" }
+                ]
+              }
+        - id: complex-update
+          name: UpdateRecord (Complex)
+          type: org.apache.nifi.processors.standard.UpdateRecord
+          position: [400, 0]
+          properties:
+            Record Reader: json-reader
+            Record Writer: json-writer
+            /status: "UPPER(/status)"
+            /sensor: "COALESCE(/sensor, 'unknown')"
+        - id: complex-query
+          name: QueryRecord (Complex)
+          type: org.apache.nifi.processors.standard.QueryRecord
+          position: [800, 0]
+          properties:
+            record-reader: json-reader
+            record-writer: json-writer
+            high: "SELECT * FROM FLOWFILE WHERE reading_value >= 50"
+            low: "SELECT * FROM FLOWFILE WHERE reading_value < 50"
+        - id: complex-log-high
+          name: LogAttribute (High)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, -200]
+        - id: complex-log-low
+          name: LogAttribute (Low)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, 200]
+        - id: complex-log-failure
+          name: LogAttribute (Complex Failure)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [800, 300]
+      connections:
+        - name: Complex Generate to Update
+          source: complex-generate
+          destination: complex-update
+          relationships: [success]
+        - name: Complex Update to Query
+          source: complex-update
+          destination: complex-query
+          relationships: [success]
+        - name: Complex Query to High Log
+          source: complex-query
+          destination: complex-log-high
+          relationships: [high]
+        - name: Complex Query to Low Log
+          source: complex-query
+          destination: complex-log-low
+          relationships: [low]
+        - name: Complex Query to Failure Log
+          source: complex-query
+          destination: complex-log-failure
+          relationships: [failure]
+      auto_terminate:
+        complex-log-high:
+          - success
+        complex-log-low:
+          - success
+        complex-log-failure:
           - success

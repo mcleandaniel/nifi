@@ -14,14 +14,21 @@ from nifi_automation.controller_registry import (
     clear_manifest_service_ids,
     ensure_root_controller_services,
 )
+from nifi_automation.diagnostics import collect_invalid_processors
 from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec
 
 
 pytestmark = pytest.mark.integration
 
 
-ROOT_FLOW_PATH = Path("flows/NiFi_Flow.yaml")
-FLOW_FILES: Iterable[Path] = [ROOT_FLOW_PATH]
+DEFAULT_FLOW_FILES = [Path("flows/NiFi_Flow.yaml")]
+_flow_override = os.getenv("NIFI_FLOW_SPECS")
+if _flow_override:
+    FLOW_FILES: Iterable[Path] = [
+        Path(part.strip()) for part in _flow_override.split(",") if part.strip()
+    ] or DEFAULT_FLOW_FILES
+else:
+    FLOW_FILES = DEFAULT_FLOW_FILES
 
 
 def wait_for_flow_stabilization(client: NiFiClient, pg_id: str, timeout: float = 5.0):
@@ -88,13 +95,12 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
         pg["component"]["name"]: pg["component"]["id"]
         for pg in group_flow.get("processGroups") or []
     }
-    assert "TrivialFlow" in child_groups, "TrivialFlow PG missing"
-    assert "SimpleWorkflow" in child_groups, "SimpleWorkflow PG missing"
-
-    trivial_pg = nifi_client._client.get(f"/flow/process-groups/{child_groups['TrivialFlow']}").json()
-    simple_pg = nifi_client._client.get(f"/flow/process-groups/{child_groups['SimpleWorkflow']}").json()
-    assert trivial_pg["processGroupFlow"]["flow"].get("processors"), "TrivialFlow has no processors"
-    assert simple_pg["processGroupFlow"]["flow"].get("processors"), "SimpleWorkflow has no processors"
+    for child_spec in spec.root_group.child_groups:
+        assert child_spec.name in child_groups, f"{child_spec.name} PG missing"
+        fetched = nifi_client._client.get(f"/flow/process-groups/{child_groups[child_spec.name]}").json()
+        sub_flow = fetched["processGroupFlow"]["flow"]
+        if child_spec.processors:
+            assert sub_flow.get("processors"), f"{child_spec.name} has no processors"
 
     # Validate controller services exist per manifest
     manifested_services = set(service_map.keys())
@@ -154,3 +160,6 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
         props = entry.get("properties") or {}
         assert "Schema Write Strategy" not in props
         assert "Schema Access Strategy" not in props
+
+    invalid_procs = collect_invalid_processors(nifi_client)
+    assert not invalid_procs, f"Invalid processors detected: {invalid_procs}"

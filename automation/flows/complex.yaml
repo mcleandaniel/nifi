@@ -2,7 +2,7 @@ process_group:
   name: NiFi Flow
   position: [0, 0]
   process_groups:
-    - name: SimpleWorkflow
+    - name: ComplexWorkflow
       position: [0, 0]
       processors:
         - id: generate
@@ -17,13 +17,14 @@ process_group:
             schema-text: |
               {
                 "type": "record",
-                "name": "test",
+                "name": "reading",
                 "fields": [
-                  { "name": "status", "type": "string" },
-                  { "name": "value", "type": "int" }
+                  { "name": "sensor", "type": "string" },
+                  { "name": "reading_value", "type": "double" },
+                  { "name": "status", "type": "string" }
                 ]
               }
-        - id: update
+        - id: enrich
           name: UpdateRecord
           type: org.apache.nifi.processors.standard.UpdateRecord
           position: [400, 0]
@@ -31,43 +32,53 @@ process_group:
             Record Reader: json-reader
             Record Writer: json-writer
             /status: "UPPER(/status)"
-        - id: query
+            /sensor: "COALESCE(/sensor, 'unknown')"
+        - id: categorize
           name: QueryRecord
           type: org.apache.nifi.processors.standard.QueryRecord
           position: [800, 0]
           properties:
             record-reader: json-reader
             record-writer: json-writer
-            success: "SELECT * FROM FLOWFILE WHERE status = 'OK'"
-            failure: "SELECT * FROM FLOWFILE WHERE status <> 'OK'"
-        - id: log_success
-          name: LogAttribute (Success)
+            high: "SELECT * FROM FLOWFILE WHERE reading_value >= 50"
+            low: "SELECT * FROM FLOWFILE WHERE reading_value < 50"
+        - id: log_high
+          name: LogAttribute (High)
           type: org.apache.nifi.processors.standard.LogAttribute
           position: [1200, -200]
+        - id: log_low
+          name: LogAttribute (Low)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, 200]
         - id: log_failure
           name: LogAttribute (Failure)
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [1200, 200]
+          position: [800, 300]
       connections:
-        - name: Generate to Update
+        - name: Generate to Enrich
           source: generate
-          destination: update
+          destination: enrich
           relationships: [success]
-          back_pressure_object_threshold: 1000
-        - name: Update to Query
-          source: update
-          destination: query
+        - name: Enrich to Categorize
+          source: enrich
+          destination: categorize
           relationships: [success]
-        - name: Query to Log Success
-          source: query
-          destination: log_success
-          relationships: [success]
-        - name: Query to Log Failure
-          source: query
+        - name: Categorize to Log High
+          source: categorize
+          destination: log_high
+          relationships: [high]
+        - name: Categorize to Log Low
+          source: categorize
+          destination: log_low
+          relationships: [low]
+        - name: Categorize to Failure
+          source: categorize
           destination: log_failure
           relationships: [failure]
       auto_terminate:
-        log_success:
+        log_high:
+          - success
+        log_low:
           - success
         log_failure:
           - success

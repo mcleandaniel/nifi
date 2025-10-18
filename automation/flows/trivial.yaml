@@ -1,25 +1,25 @@
 process_group:
-  name: TrivialFlow
+  name: NiFi Flow
   position: [0, 0]
-
-processors:
-  - id: generate
-    name: Generate FlowFile
-    type: org.apache.nifi.processors.standard.GenerateFlowFile
-    position: [0, 0]
-    properties:
-      Batch Size: "1"
-  - id: log
-    name: Log Attribute
-    type: org.apache.nifi.processors.standard.LogAttribute
-    position: [400, 0]
-
-connections:
-  - name: Generate to Log
-    source: generate
-    destination: log
-    relationships: [success]
-
-auto_terminate:
-  log:
-    - success
+  process_groups:
+    - name: TrivialFlow
+      position: [0, 0]
+      processors:
+        - id: generate
+          name: Generate FlowFile
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          position: [0, 0]
+          properties:
+            Batch Size: "1"
+        - id: log
+          name: Log Attribute
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [400, 0]
+      connections:
+        - name: Generate to Log
+          source: generate
+          destination: log
+          relationships: [success]
+      auto_terminate:
+        log:
+          - success
