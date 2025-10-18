@@ -105,20 +105,17 @@ def purge_process_group(client: NiFiClient, pg_id: str, *, delete_group: bool = 
     group_flow = response.json().get("processGroupFlow") or {}
     flow = group_flow.get("flow") or {}
 
-    # Recurse into child process groups first
     for child in flow.get("processGroups") or []:
         child_id = child.get("component", {}).get("id")
         if not child_id:
             continue
         purge_process_group(client, child_id, delete_group=True)
 
-    # Stop processors to avoid conflicts
     for processor in flow.get("processors") or []:
         proc_id = processor.get("component", {}).get("id")
         if proc_id:
             _stop_processor(client, proc_id)
 
-    # Drop queues and delete connections
     for connection in flow.get("connections") or []:
         conn_id = connection.get("component", {}).get("id")
         if not conn_id:
@@ -126,7 +123,6 @@ def purge_process_group(client: NiFiClient, pg_id: str, *, delete_group: bool = 
         _drop_connection_queue(client, conn_id)
         _delete_connection(client, conn_id)
 
-    # Disable and remove controller services scoped to this group
     services_resp = client._client.get(
         f"/flow/process-groups/{pg_id}/controller-services",
         params={"includeInherited": "false"},
@@ -137,7 +133,6 @@ def purge_process_group(client: NiFiClient, pg_id: str, *, delete_group: bool = 
         if service_id:
             _disable_and_delete_service(client, service_id)
 
-    # Delete processors
     for processor in flow.get("processors") or []:
         proc_id = processor.get("component", {}).get("id")
         if proc_id:

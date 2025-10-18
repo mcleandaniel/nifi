@@ -1,0 +1,13 @@
+{
+  "version": "1",
+  "generated_at": "2025-10-18T00:00:00Z",
+  "repo_root": ".",
+  "plans": [
+    {"id": "project", "path": "kb/plans/project.json", "kind": "project"},
+    {"id": "service-main", "path": "kb/plans/service-main.json", "kind": "service"},
+    {"id": "service-registry", "path": "kb/plans/service-registry.json", "kind": "service"},
+    {"id": "service-minifi", "path": "kb/plans/service-minifi.json", "kind": "service"},
+    {"id": "tool-core-cli", "path": "kb/plans/tool-core-cli.json", "kind": "tool"},
+    {"id": "tool-automation-suite", "path": "kb/plans/tool-automation-suite.json", "kind": "tool-group"}
+  ]
+}

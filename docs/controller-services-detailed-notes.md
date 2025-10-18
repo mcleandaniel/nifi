@@ -22,7 +22,8 @@
      "${NIFI_BASE_URL}/controller-services/${SERVICE_ID}" \
      | jq '.component | {name, state, validationErrors, properties}'
    ```
-4. Only after the standalone test passes should you attempt higher-level deployments (e.g., `simple.yaml`).
+4. Only after the standalone test passes should you attempt higher-level deployments (e.g., `NiFi_Flow.yaml`).
+   Avoid purging **after** tests run; preserve the deployed state so you can inspect any failures.
 
 ## Next Steps
 - Codify the standalone provisioning test in `tests/integration/test_live_nifi.py` and ensure the CI (or local workflow) runs it before flow deployment tests.

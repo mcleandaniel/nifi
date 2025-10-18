@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
@@ -29,12 +29,19 @@ class ConnectionSpec:
 
 
 @dataclass
+@dataclass
+class ProcessGroupSpec:
+    name: str
+    position: Tuple[float, float]
+    processors: List[ProcessorSpec] = field(default_factory=list)
+    connections: List[ConnectionSpec] = field(default_factory=list)
+    auto_terminate: Dict[str, List[str]] = field(default_factory=dict)
+    child_groups: List["ProcessGroupSpec"] = field(default_factory=list)
+
+
+@dataclass
 class FlowSpec:
-    process_group_name: str
-    process_group_position: Tuple[float, float]
-    processors: List[ProcessorSpec]
-    connections: List[ConnectionSpec]
-    auto_terminate: Dict[str, List[str]]
+    root_group: ProcessGroupSpec
 
 
 @dataclass
@@ -250,31 +257,28 @@ def compute_auto_terminate_relationships(
     return sorted(result)
 
 
-def load_flow_spec(path: Path) -> FlowSpec:
-    data = yaml.safe_load(path.read_text())
-    if not isinstance(data, dict):
-        raise FlowDeploymentError("Flow specification must be a mapping")
-
-    pg_info = data.get("process_group") or {}
-    name = pg_info.get("name")
+def _parse_process_group(
+    data: Mapping[str, Any],
+    fallback_x: float,
+    *,
+    index: int = 0,
+) -> ProcessGroupSpec:
+    name = data.get("name")
     if not name:
-        raise FlowDeploymentError("process_group.name is required")
-    pg_position = _ensure_position(pg_info.get("position"), 0.0)
+        raise FlowDeploymentError("process_group entries must include 'name'")
+    position = _ensure_position(data.get("position"), fallback_x + index * 600.0)
 
     processors_data = data.get("processors") or []
-    if not processors_data:
-        raise FlowDeploymentError("At least one processor must be defined")
-
     processors: List[ProcessorSpec] = []
     seen_ids: set[str] = set()
     for idx, item in enumerate(processors_data):
-        if not isinstance(item, dict):
+        if not isinstance(item, Mapping):
             raise FlowDeploymentError("Processor definitions must be mappings")
         key = item.get("id")
         if not key:
-            raise FlowDeploymentError("Processor missing 'id'")
+            raise FlowDeploymentError(f"Processor in group '{name}' missing 'id'")
         if key in seen_ids:
-            raise FlowDeploymentError(f"Duplicate processor id: {key}")
+            raise FlowDeploymentError(f"Duplicate processor id '{key}' in group '{name}'")
         seen_ids.add(key)
         proc = ProcessorSpec(
             key=key,
@@ -284,20 +288,19 @@ def load_flow_spec(path: Path) -> FlowSpec:
             properties=item.get("properties") or {},
         )
         if not proc.type:
-            raise FlowDeploymentError(f"Processor {key} missing 'type'")
+            raise FlowDeploymentError(f"Processor '{key}' in group '{name}' missing 'type'")
         processors.append(proc)
 
     auto_terminate = data.get("auto_terminate") or {}
-    connections_data = data.get("connections") or []
     connections: List[ConnectionSpec] = []
-    for item in connections_data:
-        if not isinstance(item, dict):
+    for item in data.get("connections") or []:
+        if not isinstance(item, Mapping):
             raise FlowDeploymentError("Connections must be mappings")
         source = item.get("source")
         destination = item.get("destination")
         if source not in seen_ids or destination not in seen_ids:
             raise FlowDeploymentError(
-                f"Connection references unknown processors: {source} -> {destination}"
+                f"Connection in group '{name}' references unknown processors: {source} -> {destination}"
             )
         relationships = item.get("relationships") or ["success"]
         connections.append(
@@ -309,13 +312,35 @@ def load_flow_spec(path: Path) -> FlowSpec:
             )
         )
 
-    return FlowSpec(
-        process_group_name=name,
-        process_group_position=pg_position,
+    child_groups: List[ProcessGroupSpec] = []
+    for child_idx, child in enumerate(data.get("process_groups") or []):
+        if not isinstance(child, Mapping):
+            raise FlowDeploymentError("process_groups entries must be mappings")
+        child_groups.append(_parse_process_group(child, fallback_x=0.0, index=child_idx))
+
+    return ProcessGroupSpec(
+        name=name,
+        position=position,
         processors=processors,
         connections=connections,
-        auto_terminate={key: list(value) for key, value in auto_terminate.items()}
+        auto_terminate={key: list(value) for key, value in (auto_terminate or {}).items()},
+        child_groups=child_groups,
     )
+
+
+def load_flow_spec(path: Path) -> FlowSpec:
+    data = yaml.safe_load(path.read_text())
+    if not isinstance(data, Mapping):
+        raise FlowDeploymentError("Flow specification must be a mapping")
+
+    pg_info = data.get("process_group")
+    if not isinstance(pg_info, Mapping):
+        raise FlowDeploymentError("Top-level 'process_group' is required")
+
+    root_group = _parse_process_group(pg_info, fallback_x=0.0)
+    if root_group.name != "NiFi Flow":
+        raise FlowDeploymentError("Root process group must be named 'NiFi Flow'")
+    return FlowSpec(root_group=root_group)
 
 
 class FlowDeployer:
@@ -335,44 +360,11 @@ class FlowDeployer:
         """Create the process group and all processors/connections. Returns the new PG ID."""
 
         root_pg_id = "root"
-        existing = self.client.find_child_process_group_by_name(root_pg_id, self.spec.process_group_name)
-        if existing:
-            self._delete_existing(existing)
+        root_group = self.spec.root_group
 
-        pg = self.client.create_process_group(
-            parent_id=root_pg_id,
-            name=self.spec.process_group_name,
-            position=self.spec.process_group_position,
-        )
-        pg_id = pg["id"]
+        self._deploy_group_contents(root_pg_id, root_group)
 
-        prepared_processors = self._prepare_processors()
-        self._apply_controller_service_mappings(prepared_processors, self.controller_service_map)
-
-        processor_id_map: Dict[str, str] = {}
-        for prepared in prepared_processors:
-            spec = prepared.spec
-            created = self.client.create_processor(
-                parent_id=pg_id,
-                name=spec.name,
-                type_name=spec.type,
-                position=spec.position,
-                properties=prepared.properties,
-            )
-            processor_id_map[spec.key] = created["id"]
-            if prepared.auto_terminate:
-                self.client.update_processor_autoterminate(created["id"], prepared.auto_terminate)
-
-        for conn in self.spec.connections:
-            self.client.create_connection(
-                parent_id=pg_id,
-                name=conn.name,
-                source_id=processor_id_map[conn.source],
-                destination_id=processor_id_map[conn.destination],
-                relationships=conn.relationships,
-            )
-
-        return pg_id
+        return root_pg_id
 
     def _delete_existing(self, pg_entity: Dict[str, object]) -> None:
         component = pg_entity.get("component", {})
@@ -390,15 +382,18 @@ class FlowDeployer:
             raise FlowDeploymentError("Unable to determine revision for existing process group")
         self.client.delete_process_group(pg_id, version)
 
-    def _prepare_processors(self) -> List[PreparedProcessor]:
+    def _prepare_processors(
+        self,
+        group_spec: ProcessGroupSpec,
+    ) -> List[PreparedProcessor]:
         metadata_by_key: Dict[str, Dict[str, Any]] = {}
-        for proc in self.spec.processors:
+        for proc in group_spec.processors:
             metadata_by_key[proc.key] = self.client.get_processor_metadata(proc.type)
 
-        connections_usage = self._collect_connection_usage(metadata_by_key)
+        connections_usage = self._collect_connection_usage(group_spec.connections, metadata_by_key)
 
         prepared: List[PreparedProcessor] = []
-        for proc in self.spec.processors:
+        for proc in group_spec.processors:
             metadata = metadata_by_key[proc.key]
             descriptors = metadata.get("propertyDescriptors") or {}
             normalized = validate_and_normalize_properties(
@@ -411,7 +406,7 @@ class FlowDeployer:
             requirements = determine_controller_service_requirements(proc.key, descriptors, normalized)
             auto_terminate = compute_auto_terminate_relationships(
                 processor_name=proc.name,
-                specified=self.spec.auto_terminate.get(proc.key, []),
+                specified=group_spec.auto_terminate.get(proc.key, []),
                 relationships=metadata.get("supportedRelationships") or metadata.get("relationships") or [],
                 connected_relationships=connections_usage.get(proc.key, set()),
                 supports_dynamic_relationships=bool(metadata.get("supportsDynamicRelationships")),
@@ -429,10 +424,11 @@ class FlowDeployer:
 
     def _collect_connection_usage(
         self,
+        connections: Iterable[ConnectionSpec],
         metadata_by_key: Mapping[str, Mapping[str, Any]],
     ) -> Dict[str, Set[str]]:
-        usage: Dict[str, Set[str]] = {proc.key: set() for proc in self.spec.processors}
-        for conn in self.spec.connections:
+        usage: Dict[str, Set[str]] = {key: set() for key in metadata_by_key.keys()}
+        for conn in connections:
             metadata = metadata_by_key.get(conn.source)
             if metadata is None:
                 raise FlowDeploymentError(
@@ -469,6 +465,45 @@ class FlowDeployer:
             for prop, value in list(prepared.properties.items()):
                 if value in controller_service_id_map:
                     prepared.properties[prop] = controller_service_id_map[value]
+
+    def _deploy_group_contents(self, parent_pg_id: str, group_spec: ProcessGroupSpec) -> None:
+        prepared_processors = self._prepare_processors(group_spec)
+        self._apply_controller_service_mappings(prepared_processors, self.controller_service_map)
+
+        processor_id_map: Dict[str, str] = {}
+        for prepared in prepared_processors:
+            spec = prepared.spec
+            created = self.client.create_processor(
+                parent_id=parent_pg_id,
+                name=spec.name,
+                type_name=spec.type,
+                position=spec.position,
+                properties=prepared.properties,
+            )
+            processor_id_map[spec.key] = created["id"]
+            if prepared.auto_terminate:
+                self.client.update_processor_autoterminate(created["id"], prepared.auto_terminate)
+
+        for conn in group_spec.connections:
+            self.client.create_connection(
+                parent_id=parent_pg_id,
+                name=conn.name,
+                source_id=processor_id_map[conn.source],
+                destination_id=processor_id_map[conn.destination],
+                relationships=conn.relationships,
+            )
+
+        for child in group_spec.child_groups:
+            existing_child = self.client.find_child_process_group_by_name(parent_pg_id, child.name)
+            if existing_child:
+                self._delete_existing(existing_child)
+            child_entity = self.client.create_process_group(
+                parent_id=parent_pg_id,
+                name=child.name,
+                position=child.position,
+            )
+            child_id = child_entity["id"]
+            self._deploy_group_contents(child_id, child)
 
 
 def deploy_flow_from_file(

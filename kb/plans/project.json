@@ -1,0 +1,518 @@
+{
+  "version": "1",
+  "generated_at": "2025-10-18T00:00:00Z",
+  "repo_root": ".",
+  "scope": "project",
+  "topics": [
+    {
+      "id": "core-runtime-architecture",
+      "title": "Core Runtime Architecture",
+      "summary": "Explain how NiFi schedules processors, routes FlowFiles, and manages back pressure across the directed acyclic graph.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-framework-bundle/nifi-framework/",
+        "nifi-docs/src/main/asciidoc/developer-guide.adoc",
+        "nifi-docs/src/main/asciidoc/overview.adoc"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["flow", "runtime", "processors"],
+      "research_request": "Draft an architecture brief covering NiFi's core runtime scheduling, FlowFile lifecycle, and component model."
+    },
+    {
+      "id": "flowfile-repository-design",
+      "title": "FlowFile and Repository Design",
+      "summary": "Detail how FlowFile, content, and provenance repositories persist state, including configuration levers and storage considerations.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/nifi.properties",
+        "nifi-framework-bundle/nifi-framework-extensions/nifi-provenance-repository-bundle/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["repositories", "storage", "flowfile"],
+      "research_request": "Explain NiFi's repository types, default retention policies, and configuration options for scaling storage."
+    },
+    {
+      "id": "cluster-topology-management",
+      "title": "Cluster Topology Management",
+      "summary": "Summarize NiFi cluster roles, node lifecycles, and coordination via ZooKeeper and embedded services.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster/",
+        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster-protocol/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["cluster", "zookeeper", "nodes"],
+      "research_request": "Describe NiFi cluster architecture, node state transitions, and ZooKeeper coordination requirements."
+    },
+    {
+      "id": "stateless-execution-engine",
+      "title": "Stateless Execution Engine",
+      "summary": "Compare the traditional and stateless execution engines, focusing on runtime behavior and use cases.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-stateless/",
+        "nifi-docs/src/main/asciidoc/user-guide.adoc",
+        "nifi-stateless-resources/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["stateless", "execution", "runtime"],
+      "research_request": "Produce guidance on when to adopt the stateless execution engine and how it impacts flow design and resources."
+    },
+    {
+      "id": "extension-bundle-system",
+      "title": "Extension Bundle System",
+      "summary": "Outline how NiFi packages and loads NAR bundles, including dependency isolation and extension points.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-extension-bundles/",
+        "nifi-maven-archetypes/",
+        "nifi-docs/src/main/asciidoc/developer-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["nar", "extensions", "bundles"],
+      "research_request": "Document NiFi's NAR bundle architecture, lifecycle, and guidelines for building custom extensions."
+    },
+    {
+      "id": "python-extension-bridge",
+      "title": "Python Extension Bridge",
+      "summary": "Describe how the Py4J bridge enables Python processors, including packaging, execution, and limitations.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-framework-bundle/nifi-framework-extensions/nifi-py4j-framework-bundle/",
+        "docs/python-design.md",
+        "nifi-docs/src/main/asciidoc/developer-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["python", "py4j", "extensions"],
+      "research_request": "Summarize the Python extension bridge architecture, deployment prerequisites, and operational caveats."
+    },
+    {
+      "id": "data-provenance-and-lineage",
+      "title": "Data Provenance and Lineage",
+      "summary": "Explain provenance capture, lineage queries, and retention tuning for compliance workloads.",
+      "category": "data",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/user-guide.adoc",
+        "nifi-framework-bundle/nifi-framework-extensions/nifi-provenance-repository-bundle/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["provenance", "lineage", "compliance"],
+      "research_request": "Detail how NiFi records provenance events, query patterns, and best practices for retention and export."
+    },
+    {
+      "id": "registry-integration-workflows",
+      "title": "Registry Integration Workflows",
+      "summary": "Show how NiFi integrates with NiFi Registry for versioned flows and lifecycle automation.",
+      "category": "architecture",
+      "recommended_sources": [
+        "nifi-registry/",
+        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["registry", "versioning", "lifecycle"],
+      "research_request": "Compile guidance on linking NiFi to NiFi Registry, managing buckets, and promoting versioned flows."
+    },
+    {
+      "id": "web-ui-platform",
+      "title": "Web UI Platform",
+      "summary": "Summarize the NiFi web UI architecture, frontend build, and UX conventions for operators.",
+      "category": "ui",
+      "recommended_sources": [
+        "nifi-frontend/src/main/frontend/",
+        "nifi-docs/src/main/asciidoc/user-guide.adoc",
+        "README.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["ui", "frontend", "ux"],
+      "research_request": "Describe the NiFi web UI technology stack, build pipeline, and key operator workflows it supports."
+    },
+    {
+      "id": "build-system-and-modules",
+      "title": "Build System and Module Layout",
+      "summary": "Map the multi-module Maven build, BOM structure, and key aggregation points for releases.",
+      "category": "development",
+      "recommended_sources": [
+        "pom.xml",
+        "nifi-bom/",
+        "nifi-assembly/pom.xml"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["maven", "modules", "bom"],
+      "research_request": "Explain the Maven module graph, BOM usage, and how assemblies combine to produce distributions."
+    },
+    {
+      "id": "maven-profiles-and-quality-gates",
+      "title": "Maven Profiles and Quality Gates",
+      "summary": "Cover contrib-check, coverage, and compliance profiles plus how CI enforces them.",
+      "category": "development",
+      "recommended_sources": [
+        ".github/workflows/ci-workflow.yml",
+        ".github/workflows/code-compliance.yml",
+        "README.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["ci", "profiles", "quality"],
+      "research_request": "Document available Maven profiles, required quality gates, and how CI pipelines validate them."
+    },
+    {
+      "id": "java-coding-standards",
+      "title": "Java Coding Standards",
+      "summary": "Highlight enforced style rules, static analysis, and code-review expectations for Java modules.",
+      "category": "development",
+      "recommended_sources": [
+        "checkstyle.xml",
+        "pmd-ruleset.xml",
+        "docs/design-log.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["java", "style", "quality"],
+      "research_request": "Summarize Java style guidelines, static analysis configuration, and review checklists for contributors."
+    },
+    {
+      "id": "python-automation-development",
+      "title": "Python Automation Development",
+      "summary": "Describe the automation package structure, dependency management, and development workflows.",
+      "category": "development",
+      "recommended_sources": [
+        "automation/src/",
+        "automation/README.md",
+        "docs/python-design.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["python", "automation", "dev"],
+      "research_request": "Explain how the automation package is organized, tested, and extended for REST-driven flows."
+    },
+    {
+      "id": "frontend-build-pipeline",
+      "title": "Frontend Build Pipeline",
+      "summary": "Outline how the NiFi frontend assets are built, bundled, and integrated into the distribution.",
+      "category": "development",
+      "recommended_sources": [
+        "nifi-frontend/src/main/frontend/",
+        "nifi-framework-bundle/",
+        "nifi-docs/src/main/asciidoc/user-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["frontend", "build", "assets"],
+      "research_request": "Detail the frontend build process, tooling, and how artifacts are packaged into NiFi distributions."
+    },
+    {
+      "id": "testing-strategy-overview",
+      "title": "Testing Strategy Overview",
+      "summary": "Summarize unit, integration, and system test tiers plus their triggering pipelines.",
+      "category": "testing",
+      "recommended_sources": [
+        ".github/workflows/system-tests.yml",
+        ".github/workflows/integration-tests.yml",
+        "nifi-system-tests/"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["testing", "ci", "coverage"],
+      "research_request": "Document NiFi's testing tiers, coverage expectations, and CI triggers for each suite."
+    },
+    {
+      "id": "unit-testing-and-mocks",
+      "title": "Unit Testing and Mocks",
+      "summary": "Describe patterns for processor unit tests, mock utilities, and best practices for isolation.",
+      "category": "testing",
+      "recommended_sources": [
+        "nifi-mock/",
+        "nifi-commons/",
+        "nifi-docs/src/main/asciidoc/developer-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["unit", "mock", "processors"],
+      "research_request": "Provide guidance on building processor unit tests with NiFi mock utilities and asserting FlowFile state."
+    },
+    {
+      "id": "integration-testing-and-system-tests",
+      "title": "Integration and System Tests",
+      "summary": "Explain system test harnesses, Docker-based validation, and how to run them locally.",
+      "category": "testing",
+      "recommended_sources": [
+        "nifi-system-tests/",
+        ".github/workflows/docker-tests.yml",
+        "nifi-docker/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["integration", "docker", "system-tests"],
+      "research_request": "Summarize system test frameworks, Docker workflows, and local execution steps for end-to-end validation."
+    },
+    {
+      "id": "stateless-testing-scenarios",
+      "title": "Stateless Testing Scenarios",
+      "summary": "Cover strategies for validating stateless flows and regression tests specific to stateless mode.",
+      "category": "testing",
+      "recommended_sources": [
+        "nifi-stateless/",
+        "nifi-system-tests/nifi-system-test-suite/",
+        "nifi-docs/src/main/asciidoc/user-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["stateless", "testing", "regression"],
+      "research_request": "Detail how to construct automated tests for stateless flows, including harnesses and sample scenarios."
+    },
+    {
+      "id": "security-architecture-overview",
+      "title": "Security Architecture Overview",
+      "summary": "Summarize authentication, authorization, and transport security pillars across NiFi deployments.",
+      "category": "security",
+      "recommended_sources": [
+        "SECURITY.md",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-framework-bundle/nifi-framework-extensions/nifi-kerberos-iaa-providers-bundle/"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["security", "authentication", "tls"],
+      "research_request": "Provide a security overview covering identity providers, authorization flows, and transport protections."
+    },
+    {
+      "id": "identity-and-access-providers",
+      "title": "Identity and Access Providers",
+      "summary": "Explain available login and identity providers, configuration, and integration tips.",
+      "category": "security",
+      "recommended_sources": [
+        "nifi-framework-bundle/nifi-framework-extensions/nifi-ldap-iaa-providers-bundle/",
+        "nifi-framework-bundle/nifi-framework-extensions/nifi-single-user-iaa-providers-bundle/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["identity", "providers", "login"],
+      "research_request": "Outline NiFi identity provider options, configuration steps, and when to choose each provider."
+    },
+    {
+      "id": "authorization-and-policy-management",
+      "title": "Authorization and Policy Management",
+      "summary": "Describe access policies, resource scopes, and multi-tenant authorization workflows.",
+      "category": "security",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-framework-bundle/nifi-framework/nifi-web/nifi-web-security/",
+        "nifi-docs/src/main/asciidoc/user-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["authorization", "policies", "multi-tenant"],
+      "research_request": "Explain how NiFi defines and manages access policies, including common policy patterns and auditing."
+    },
+    {
+      "id": "tls-and-sensitive-configuration",
+      "title": "TLS and Sensitive Configuration",
+      "summary": "Detail TLS setup, keystore management, and encryption of sensitive properties.",
+      "category": "security",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/",
+        "nifi-toolkit/nifi-toolkit-cli/src/main/resources/"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["tls", "encryption", "keystore"],
+      "research_request": "Document TLS configuration steps, keystore/truststore handling, and sensitive property encryption guidance."
+    },
+    {
+      "id": "secret-parameter-providers",
+      "title": "Secret and Parameter Providers",
+      "summary": "Review dynamic parameter providers, secret backends, and configuration workflows.",
+      "category": "security",
+      "recommended_sources": [
+        "nifi-extension-bundles/nifi-aws-bundle/nifi-aws-parameter-providers/",
+        "nifi-extension-bundles/nifi-azure-bundle/nifi-azure-parameter-providers/",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["parameters", "secrets", "providers"],
+      "research_request": "Summarize supported parameter and secret providers, setup steps, and usage patterns."
+    },
+    {
+      "id": "deployment-assembly-distribution",
+      "title": "Deployment Assembly and Distribution",
+      "summary": "Explain how assemblies produce binary distributions and how operators consume them.",
+      "category": "deployment",
+      "recommended_sources": [
+        "nifi-assembly/src/main/assembly/",
+        "nifi-assembly/pom.xml",
+        "README.md"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["assembly", "distribution", "release"],
+      "research_request": "Describe NiFi assembly outputs, distribution layout, and steps to install from the binary package."
+    },
+    {
+      "id": "docker-and-container-images",
+      "title": "Docker and Container Images",
+      "summary": "Detail official Docker images, configuration hooks, and deployment configuration options.",
+      "category": "deployment",
+      "recommended_sources": [
+        "nifi-docker/",
+        "nifi-docker/dockerhub/sh/",
+        ".github/workflows/docker-tests.yml"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["docker", "containers", "deployment"],
+      "research_request": "Document NiFi Docker image structure, environment variables, and orchestration considerations."
+    },
+    {
+      "id": "operations-monitoring-and-logging",
+      "title": "Operations Monitoring and Logging",
+      "summary": "Summarize logging configuration, health endpoints, and observability tooling for operators.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/logback.xml",
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["logging", "monitoring", "observability"],
+      "research_request": "Explain NiFi logging configuration, monitoring endpoints, and recommended observability integrations."
+    },
+    {
+      "id": "high-availability-operations",
+      "title": "High Availability Operations",
+      "summary": "Provide operational practices for clustered deployments, failover, and load balancing.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster/",
+        ".github/workflows/system-tests.yml"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["ha", "cluster", "operations"],
+      "research_request": "Summarize HA deployment patterns, load balancing, and operational checks for clustered NiFi." 
+    },
+    {
+      "id": "backup-and-disaster-recovery",
+      "title": "Backup and Disaster Recovery",
+      "summary": "Outline backup targets, restoration procedures, and disaster recovery testing guidance.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/nifi.properties",
+        "nifi-docker/dockerhub/README.md"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["backup", "recovery", "resilience"],
+      "research_request": "Provide backup targets, restoration steps, and validation procedures for NiFi deployments."
+    },
+    {
+      "id": "performance-and-capacity-planning",
+      "title": "Performance and Capacity Planning",
+      "summary": "Discuss throughput tuning, thread configuration, and sizing guidance for large flows.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "docs/design-log.md",
+        "nifi-system-tests/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["performance", "capacity", "tuning"],
+      "research_request": "Compile performance tuning levers, benchmarking practices, and sizing recommendations."
+    },
+    {
+      "id": "upgrade-and-migration-procedures",
+      "title": "Upgrade and Migration Procedures",
+      "summary": "Explain version upgrade workflow, compatibility checks, and rollback planning.",
+      "category": "operations",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
+        "nifi-assembly/src/main/assembly/",
+        "nifi-docker/README.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["upgrade", "migration", "rollback"],
+      "research_request": "Detail NiFi upgrade steps, compatibility considerations, and rollback strategies."
+    },
+    {
+      "id": "governance-release-and-ci",
+      "title": "Governance, Release, and CI",
+      "summary": "Summarize release cadence, CI governance, and artifact publishing responsibilities.",
+      "category": "governance",
+      "recommended_sources": [
+        ".github/workflows/ci-workflow.yml",
+        ".github/workflows/code-coverage.yml",
+        "README.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["governance", "release", "ci"],
+      "research_request": "Describe the release process, CI oversight, and responsibilities for managing NiFi artifacts."
+    },
+    {
+      "id": "community-and-contribution-process",
+      "title": "Community and Contribution Process",
+      "summary": "Document contributor onboarding, review expectations, and community support channels.",
+      "category": "governance",
+      "recommended_sources": [
+        "README.md",
+        "SECURITY.md",
+        "nifi-docs/src/main/asciidoc/developer-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["community", "contribution", "support"],
+      "research_request": "Summarize contributor workflow, review expectations, and support channels for NiFi."
+    },
+    {
+      "id": "documentation-landscape",
+      "title": "Documentation Landscape",
+      "summary": "Map core documentation sources, audiences, and how they interrelate for maintainers.",
+      "category": "meta",
+      "recommended_sources": [
+        "nifi-docs/src/main/asciidoc/",
+        "docs/",
+        "research-docs/"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["docs", "information", "audience"],
+      "research_request": "Provide an overview of NiFi documentation sets, target audiences, and update workflows."
+    },
+    {
+      "id": "roadmap-and-design-notes",
+      "title": "Roadmap and Design Notes",
+      "summary": "Capture current design discussions, outstanding proposals, and roadmap signals.",
+      "category": "meta",
+      "recommended_sources": [
+        "docs/design-log.md",
+        "docs/controller-services-design.md",
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["roadmap", "design", "planning"],
+      "research_request": "Summarize active design notes, roadmap items, and follow-up questions for planners."
+    }
+  ]
+}

@@ -1,0 +1,204 @@
+{
+  "version": "1",
+  "generated_at": "2025-10-18T00:00:00Z",
+  "repo_root": ".",
+  "scope": "service",
+  "service": {
+    "id": "service-minifi",
+    "name": "Apache MiNiFi Agent",
+    "kind": "service",
+    "entrypoints": [
+      "minifi/minifi-nar-bundles/minifi-framework-bundle/minifi-framework/minifi-resources/src/main/resources/bin/minifi.sh",
+      "minifi/minifi-nar-bundles/minifi-framework-bundle/minifi-framework/minifi-resources/src/main/resources/conf/bootstrap.conf",
+      "minifi/minifi-commons/minifi-commons-framework/src/main/java/"
+    ],
+    "ports": [],
+    "artifacts": [
+      "minifi/minifi-assembly/",
+      "minifi/minifi-assembly/target/minifi-*-bin.zip",
+      "minifi/minifi-docker/"
+    ]
+  },
+  "topics": [
+    {
+      "id": "minifi-service-overview",
+      "title": "Service Overview",
+      "summary": "Describe MiNiFi's role as an edge data collection agent and how it differs from NiFi core.",
+      "category": "architecture",
+      "recommended_sources": [
+        "minifi/minifi-commons/",
+        "minifi/minifi-docs/src/main/markdown/",
+        "minifi/minifi-nar-bundles/minifi-framework-bundle/"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["minifi", "edge", "overview"],
+      "research_request": "Summarize MiNiFi architecture, use cases, and its relationship to Apache NiFi."
+    },
+    {
+      "id": "minifi-installation-and-packaging",
+      "title": "Installation and Packaging",
+      "summary": "Explain distribution layout, install steps, and platform considerations for MiNiFi deployments.",
+      "category": "deployment",
+      "recommended_sources": [
+        "minifi/minifi-assembly/",
+        "minifi/minifi-assembly/pom.xml",
+        "minifi/minifi-docs/src/main/markdown/"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["installation", "distribution", "edge"],
+      "research_request": "Document MiNiFi installation workflow, packaging outputs, and supported target environments."
+    },
+    {
+      "id": "minifi-bootstrap-and-lifecycle",
+      "title": "Bootstrap and Lifecycle",
+      "summary": "Detail bootstrap.conf options, lifecycle commands, and how the agent manages its runtime.",
+      "category": "operations",
+      "recommended_sources": [
+        "minifi/minifi-nar-bundles/minifi-framework-bundle/minifi-framework/minifi-resources/src/main/resources/conf/bootstrap.conf",
+        "minifi/minifi-bootstrap/src/main/java/",
+        "minifi/minifi-docs/src/main/markdown/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["bootstrap", "lifecycle", "agent"],
+      "research_request": "Explain MiNiFi bootstrap configuration, lifecycle commands, and runtime management."
+    },
+    {
+      "id": "minifi-flow-configuration",
+      "title": "Flow Configuration",
+      "summary": "Describe how MiNiFi consumes config YAML/JSON, supports C2 updates, and maps to NiFi processors.",
+      "category": "operations",
+      "recommended_sources": [
+        "minifi/minifi-docs/src/main/markdown/",
+        "minifi/minifi-commons/minifi-commons-framework/",
+        "minifi/minifi-bootstrap/src/main/java/"
+      ],
+      "dependencies": [],
+      "priority": "high",
+      "tags": ["configuration", "flows", "c2"],
+      "research_request": "Document MiNiFi flow configuration formats, deployment steps, and central management workflows."
+    },
+    {
+      "id": "minifi-provenance-and-reporting",
+      "title": "Provenance and Reporting",
+      "summary": "Explain provenance capture options, status reporting, and forwarding data back to NiFi or monitoring systems.",
+      "category": "operations",
+      "recommended_sources": [
+        "minifi/minifi-nar-bundles/minifi-provenance-repository-bundle/",
+        "minifi/minifi-docs/src/main/markdown/",
+        "minifi/minifi-bootstrap/src/main/java/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["provenance", "reporting", "monitoring"],
+      "research_request": "Summarize MiNiFi provenance options, reporting tasks, and integration with upstream monitoring."
+    },
+    {
+      "id": "minifi-remote-communication",
+      "title": "Remote Communication",
+      "summary": "Cover site-to-site, REST, and C2 communication paths between MiNiFi and central NiFi deployments.",
+      "category": "operations",
+      "recommended_sources": [
+        "minifi/minifi-commons/minifi-commons-utils/",
+        "minifi/minifi-docs/src/main/markdown/",
+        "c2/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["communication", "c2", "s2s"],
+      "research_request": "Explain MiNiFi remote communication options, including C2 protocol usage and site-to-site configuration."
+    },
+    {
+      "id": "minifi-security-and-tls",
+      "title": "Security and TLS",
+      "summary": "Detail TLS enablement, keystore configuration, and sensitive property handling for MiNiFi.",
+      "category": "security",
+      "recommended_sources": [
+        "minifi/minifi-nar-bundles/minifi-framework-bundle/minifi-framework/minifi-resources/src/main/resources/conf/bootstrap.conf",
+        "minifi/minifi-docs/src/main/markdown/",
+        "nifi-toolkit/nifi-toolkit-cli/src/main/resources/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["tls", "security", "keystore"],
+      "research_request": "Provide guidance on securing MiNiFi, including TLS configuration and sensitive property handling."
+    },
+    {
+      "id": "minifi-extensions-and-components",
+      "title": "Extensions and Components",
+      "summary": "Describe available MiNiFi processors, NAR bundles, and extension development patterns.",
+      "category": "architecture",
+      "recommended_sources": [
+        "minifi/minifi-nar-bundles/",
+        "minifi/minifi-docs/src/main/markdown/",
+        "nifi-docs/src/main/asciidoc/developer-guide.adoc"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["extensions", "processors", "nar"],
+      "research_request": "Summarize MiNiFi extension bundles, supported processors, and guidance for building new components."
+    },
+    {
+      "id": "minifi-monitoring-and-logging",
+      "title": "Monitoring and Logging",
+      "summary": "Explain logging configuration, status reporters, and how to monitor MiNiFi health.",
+      "category": "operations",
+      "recommended_sources": [
+        "minifi/minifi-nar-bundles/minifi-framework-bundle/minifi-framework/minifi-resources/src/main/resources/conf/logback.xml",
+        "minifi/minifi-bootstrap/src/main/java/",
+        "minifi/minifi-docs/src/main/markdown/"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["logging", "monitoring", "health"],
+      "research_request": "Provide instructions for configuring MiNiFi logging, status reporting, and health monitoring."
+    },
+    {
+      "id": "minifi-upgrade-and-maintenance",
+      "title": "Upgrade and Maintenance",
+      "summary": "Outline version upgrade workflow, compatibility considerations, and agent maintenance tasks.",
+      "category": "operations",
+      "recommended_sources": [
+        "minifi/minifi-assembly/",
+        "minifi/minifi-docs/src/main/markdown/",
+        "minifi/minifi-docker/dockerhub/README.md"
+      ],
+      "dependencies": [],
+      "priority": "low",
+      "tags": ["upgrade", "maintenance", "edge"],
+      "research_request": "Describe MiNiFi upgrade planning, maintenance windows, and compatibility guidance."
+    },
+    {
+      "id": "minifi-docker-and-edge-deployments",
+      "title": "Docker and Edge Deployments",
+      "summary": "Discuss container images, IoT packaging, and orchestrating MiNiFi across edge fleets.",
+      "category": "deployment",
+      "recommended_sources": [
+        "minifi/minifi-docker/",
+        "minifi/minifi-docker/dockerhub/Dockerfile",
+        "minifi/minifi-docker/dockerhub/README.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["docker", "edge", "deployment"],
+      "research_request": "Summarize MiNiFi container images, configuration options, and orchestration strategies for edge fleets."
+    },
+    {
+      "id": "minifi-integration-with-nifi",
+      "title": "Integration with NiFi",
+      "summary": "Explain how MiNiFi agents integrate with NiFi pipelines, including flow promotion and provenance exchange.",
+      "category": "architecture",
+      "recommended_sources": [
+        "minifi/minifi-docs/src/main/markdown/",
+        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
+        "docs/automation-flow-builder.md"
+      ],
+      "dependencies": [],
+      "priority": "medium",
+      "tags": ["integration", "nifi", "flows"],
+      "research_request": "Provide guidance on pairing MiNiFi with NiFi, managing flow promotions, and synchronizing provenance."
+    }
+  ]
+}

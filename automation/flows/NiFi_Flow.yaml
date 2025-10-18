@@ -1,0 +1,96 @@
+process_group:
+  name: NiFi Flow
+  position: [0, 0]
+  processors: []
+  connections: []
+  auto_terminate: {}
+  process_groups:
+    - name: TrivialFlow
+      position: [0, 0]
+      processors:
+        - id: generate
+          name: Generate FlowFile
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          position: [0, 0]
+          properties:
+            Batch Size: "1"
+        - id: log
+          name: Log Attribute
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [400, 0]
+      connections:
+        - name: Generate to Log
+          source: generate
+          destination: log
+          relationships: [success]
+      auto_terminate:
+        log:
+          - success
+    - name: SimpleWorkflow
+      position: [800, 0]
+      processors:
+        - id: generate
+          name: GenerateRecord
+          type: org.apache.nifi.processors.standard.GenerateRecord
+          position: [0, 0]
+          properties:
+            record-writer: json-writer
+            number-of-records: "1"
+            nullable-fields: "false"
+            null-percentage: "0.0"
+            schema-text: |
+              {
+                "type": "record",
+                "name": "test",
+                "fields": [
+                  { "name": "status", "type": "string" },
+                  { "name": "value", "type": "int" }
+                ]
+              }
+        - id: update
+          name: UpdateRecord
+          type: org.apache.nifi.processors.standard.UpdateRecord
+          position: [400, 0]
+          properties:
+            Record Reader: json-reader
+            Record Writer: json-writer
+            /status: "UPPER(/status)"
+        - id: query
+          name: QueryRecord
+          type: org.apache.nifi.processors.standard.QueryRecord
+          position: [800, 0]
+          properties:
+            record-reader: json-reader
+            record-writer: json-writer
+            success: "SELECT * FROM FLOWFILE WHERE status = 'OK'"
+            failure: "SELECT * FROM FLOWFILE WHERE status <> 'OK'"
+        - id: log_success
+          name: LogAttribute (Success)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, -200]
+        - id: log_failure
+          name: LogAttribute (Failure)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, 200]
+      connections:
+        - name: Generate to Update
+          source: generate
+          destination: update
+          relationships: [success]
+        - name: Update to Query
+          source: update
+          destination: query
+          relationships: [success]
+        - name: Query to Log Success
+          source: query
+          destination: log_success
+          relationships: [success]
+        - name: Query to Log Failure
+          source: query
+          destination: log_failure
+          relationships: [failure]
+      auto_terminate:
+        log_success:
+          - success
+        log_failure:
+          - success

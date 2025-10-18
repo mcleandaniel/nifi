@@ -31,38 +31,105 @@ We assume:
 - Extensible to support more complex flows without major rewrites.
 
 ## 3. Flow Specification Format
-Declarative YAML structure (`flows/*.yaml`):
+Declarative YAML structure (`flows/NiFi_Flow.yaml`):
 ```yaml
 process_group:
-  name: TrivialFlow
+  name: NiFi Flow
   position: [0, 0]
-
-processors:
-  - id: generate
-    name: Generate FlowFile
-    type: org.apache.nifi.processors.standard.GenerateFlowFile
-    position: [0, 0]
-    properties:
-      Batch Size: "1"
-  - id: log
-    name: Log Attribute
-    type: org.apache.nifi.processors.standard.LogAttribute
-    position: [400, 0]
-
-connections:
-  - name: Generate to Log
-    source: generate
-    destination: log
-    relationships: [success]
-
-auto_terminate:
-  log:
-    - success
+  process_groups:
+    - name: TrivialFlow
+      position: [0, 0]
+      processors:
+        - id: generate
+          name: Generate FlowFile
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          position: [0, 0]
+          properties:
+            Batch Size: "1"
+        - id: log
+          name: Log Attribute
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [400, 0]
+      connections:
+        - name: Generate to Log
+          source: generate
+          destination: log
+          relationships: [success]
+      auto_terminate:
+        log:
+          - success
+    - name: SimpleWorkflow
+      position: [800, 0]
+      processors:
+        - id: generate
+          name: GenerateRecord
+          type: org.apache.nifi.processors.standard.GenerateRecord
+          position: [0, 0]
+          properties:
+            record-writer: json-writer
+            number-of-records: "1"
+            nullable-fields: "false"
+            null-percentage: "0.0"
+            schema-text: |
+              { "type": "record", "name": "test", "fields": [
+                  { "name": "status", "type": "string" },
+                  { "name": "value", "type": "int" }
+                ]
+              }
+        - id: update
+          name: UpdateRecord
+          type: org.apache.nifi.processors.standard.UpdateRecord
+          position: [400, 0]
+          properties:
+            Record Reader: json-reader
+            Record Writer: json-writer
+            /status: "UPPER(/status)"
+        - id: query
+          name: QueryRecord
+          type: org.apache.nifi.processors.standard.QueryRecord
+          position: [800, 0]
+          properties:
+            record-reader: json-reader
+            record-writer: json-writer
+            success: "SELECT * FROM FLOWFILE WHERE status = 'OK'"
+            failure: "SELECT * FROM FLOWFILE WHERE status <> 'OK'"
+        - id: log_success
+          name: LogAttribute (Success)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, -200]
+        - id: log_failure
+          name: LogAttribute (Failure)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          position: [1200, 200]
+      connections:
+        - name: Generate to Update
+          source: generate
+          destination: update
+          relationships: [success]
+        - name: Update to Query
+          source: update
+          destination: query
+          relationships: [success]
+        - name: Query to Log Success
+          source: query
+          destination: log_success
+          relationships: [success]
+        - name: Query to Log Failure
+          source: query
+          destination: log_failure
+          relationships: [failure]
+      auto_terminate:
+        log_success:
+          - success
+        log_failure:
+          - success
 ```
 
 **Key rules**
-- `process_group.name` becomes the new PG under NiFi root (or configurable parent).
-- `processor.id` is a local alias (used in connections & spec); a NiFi-generated UUID is assigned on create.
+- The top-level `process_group.name` must be `NiFi Flow`; its contents are deployed directly into NiFi's
+  built-in root process group.
+- Nested groups are declared via the `process_groups` array inside any group.
+- `processor.id` is local to its containing group (used in connections & spec); NiFi assigns UUIDs on create.
 - `type` refers to the fully-qualified processor class; NiFi bundle info is resolved via `/flow/processor-types`.
 - `connections.relationships` defaults to `[success]` if omitted.
 - `auto_terminate` lists relationships to auto-terminate per processor (future: allow defaults from processor metadata).
@@ -71,7 +138,6 @@ auto_terminate:
 - `controller_services`
 - `parameter_context`
 - `ports` (input/output)
-- `nested_groups`
 - `schedule` (concurrency, run duration)
 - `layout` options (e.g., `layout: layered`, `spacing: {x: 400, y: 200}`) to guide auto-positioning while keeping overrides optional.
 

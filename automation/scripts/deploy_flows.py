@@ -44,8 +44,8 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
         "flows",
         nargs="*",
         type=Path,
-        default=[Path("flows/trivial.yaml"), Path("flows/simple.yaml")],
-        help="Flow specification files to deploy in order (default: trivial.yaml then simple.yaml).",
+        default=[Path("flows/NiFi_Flow.yaml")],
+        help="Flow specification files to deploy in order (default: flows/NiFi_Flow.yaml).",
     )
     parser.add_argument(
         "--no-purge",

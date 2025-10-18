@@ -35,18 +35,20 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
    ```
 
 4. **Run the CLI** (TLS verification disabled by default; add `--verify-ssl` to enable):
-   ```bash
-   nifi-automation auth-token
-   nifi-automation flow-summary
-   nifi-automation deploy-flow flows/trivial.yaml
+  ```bash
+  nifi-automation auth-token
+  nifi-automation flow-summary
+  nifi-automation deploy-flow flows/NiFi_Flow.yaml
   nifi-automation controller-services-report --format markdown
   nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
-   ```
+  ```
 
 5. **Run tests**  
-   ```bash
-   pytest
-   ```
+  ```bash
+  pytest
+  ```
+  *(Run `scripts/purge_nifi_root.py` before any integration test invocation; the tests assume a clean NiFi and do
+  not purge on your behalf. Leave NiFi untouched after failures so you can inspect the deployed state.)*
 
 ## Local NiFi for Integration Tests
 To run the live integration suite (`RUN_NIFI_INTEGRATION=1`), keep a NiFi 2.0 instance running locally with the expected credentials:
@@ -104,18 +106,21 @@ When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`),
    set -a; source ../.env; set +a
    .venv/bin/python scripts/purge_nifi_root.py
    ```
-2. **Deploy** – call `nifi-automation deploy-flow flows/simple.yaml`. The command:
-   - Ensures the manifest controller services exist (fail-fast if anything is already present).
-   - Creates the process group, processors, and connections defined in the spec.
+2. **Deploy** – call `nifi-automation deploy-flow flows/NiFi_Flow.yaml` *or* run the convenience script:
+   ```bash
+   .venv/bin/python scripts/deploy_flows.py
+   ```
+   The command/script ensures controller services exist (fail-fast if anything already exists) and
+   creates all process groups/processors/connections defined in the spec.
 3. **Verify** – optional `controller-services-report` or REST `curl` if you want to spot-check states/properties.
 
 If the deploy fails because services already exist, purge again—`ensure_root_controller_services` intentionally refuses to reconcile on a dirty instance.
 
 ## Flow Specifications
-- Declarative specs live under `flows/`. Start with `flows/trivial.yaml`, which
-  provisions a `GenerateFlowFile` -> `LogAttribute` pipeline inside a new
-  process group named `TrivialFlow` beneath the NiFi root.
-- `nifi-automation deploy-flow flows/trivial.yaml` recreates the flow each time.
+- Declarative specs live under `flows/`. The canonical example is `flows/NiFi_Flow.yaml`, which
+  provisions a root process group named `NiFi Flow` with two child groups: `TrivialFlow` and
+  `SimpleWorkflow`.
+- `nifi-automation deploy-flow flows/NiFi_Flow.yaml` recreates the entire hierarchy each time.
 
 ## Next Steps
 - Add specs for the Simple/Medium/Complex workflows in `flows/` and deploy them

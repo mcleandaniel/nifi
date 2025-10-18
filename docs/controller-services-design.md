@@ -104,6 +104,7 @@ This process assumes **no existing controller services** are deployed. It should
   * Purge root.
   * Provision all services from manifest.
   * Assert all reach `ENABLED` with zero validation errors and that only canonical keys remain (display-name aliases are absent).
+  * Purge **before** the test run; never purge immediately afterward so failed states remain available for inspection.
 
 ## Deployment Workflow
 
