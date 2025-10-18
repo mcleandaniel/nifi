@@ -2,16 +2,17 @@
 
 ## Key Learnings
 - NiFi descriptors often mark properties `required(true)` while still supplying defaults. Required only means the value may not be left blank; NiFi will pre-populate the provided default.
+- NiFi responses normalise property keys: even when we submit canonical IDs, NiFi may echo both canonical and display-name entries. Automation treats the canonical key as source of truth and expects display-name slots to be empty.
 - REST payloads must use the same property key NiFi declares in source. For some services (e.g., `JsonRecordSetWriter`), the descriptor name is literally the display string (`"Schema Write Strategy"`). Sending an aliased key (`schema-write-strategy`) triggers the validation error “not a supported property.”
-- When provisioning via the manifest, normalise user-supplied keys/values to NiFi’s descriptors and clear any stale display-name variants so only the canonical key remains.
-- Always disable a controller service before updating properties; re-enable only after NiFi has applied the changes and reported no validation errors.
+- When provisioning via the manifest, normalise user-supplied keys/values to NiFi’s descriptors. Automation now rejects unknown keys and sends canonical property identifiers so NiFi’s validation either passes cleanly or fails with explicit errors.
+- Avoid mid-flight reconciliation cycles. Provisioning happens on a clean instance; if controller services already exist, automation aborts and instructs the operator to purge instead of attempting disable/update loops.
 
 ## Troubleshooting Flow (Regression Workflow)
 1. **Purge the NiFi root process group (`purge_root`) before doing anything else.**
    Assume the instance is dirty until you personally cleared it this session.
 2. Run a focused provisioning test that calls `ensure_root_controller_services` and asserts:
    - The expected controller-service IDs exist.
-   - Properties contain only canonical keys and no validation errors.
+   - NiFi reports canonical property keys (display-name aliases are blank) and no validation errors.
    - If any service remains in `ENABLING` or `INVALID`, **stop immediately** and capture the reproduction commands (token fetch + service inspection) instead of looping on automation retries.
 3. Use the scripted curl commands:
   ```bash
@@ -29,7 +30,7 @@
 - Regenerate the controller-service report once the manifest behaves correctly; verify that services such as `JsonRecordSetWriter` show as VALID in NiFi’s UI.
 
 ## Utility Script
-Run `automation/scripts/provision_json_services.py` to purge NiFi, reprovision the JsonTreeReader/JsonRecordSetWriter services, and dump their state (including validation errors and properties):
+Run `automation/scripts/provision_json_services.py` to purge NiFi, reprovision the JsonTreeReader/JsonRecordSetWriter services, and dump their state (including validation errors and properties). The script is a diagnostic aid; the standard `nifi-automation deploy-flow` command now provisions services automatically when the instance is clean.
 ```bash
 cd automation
 RUN_NIFI_INTEGRATION=1 .venv/bin/python scripts/provision_json_services.py
@@ -120,6 +121,6 @@ Note the lowercase canonical keys and allowable value string (`infer-schema`) ex
 
 - ✅ Update `manifest/controller-services.json` to emit canonical keys/values (done).
 - ✅ Extend `_normalise_properties` in `controller_registry.py` to translate display-name keys and strip stale aliases (done).
-- ☐ Write a focused unit test for `_normalise_properties` covering display-name inputs and allowable value translation.
+- ✅ Write a focused unit test for `_normalise_properties` covering display-name inputs and allowable value translation.
 - ☐ Extend the flow manifest (or per-flow metadata) so `json-reader`/`json-writer` dependencies are guaranteed before deploying `flows/simple.yaml`.
 - ☐ Consider a validation utility that diff-checks controller service properties after enablement to catch regression drift.
