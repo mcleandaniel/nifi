@@ -6,15 +6,17 @@
       "type": "org.apache.nifi.json.JsonTreeReader",
       "properties": {
         "schema-access-strategy": "infer-schema"
-      }
+      },
+      "id": "f48a2fb7-0199-1000-c699-c668debf181a"
     },
     {
       "key": "json-writer",
       "name": "JsonRecordSetWriter",
       "type": "org.apache.nifi.json.JsonRecordSetWriter",
       "properties": {
-        "Schema Write Strategy": "no-schema"
-      }
+        "schema-write-strategy": "no-schema"
+      },
+      "id": "f48a3041-0199-1000-28ed-a25befc99c0c"
     }
   ]
 }

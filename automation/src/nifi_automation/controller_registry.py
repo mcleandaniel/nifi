@@ -57,6 +57,10 @@ class ControllerServiceEntry:
         return payload
 
 
+class ControllerServiceProvisioningError(RuntimeError):
+    """Raised when controller services cannot be provisioned as specified."""
+
+
 def _load_manifest_entries() -> List[ControllerServiceEntry]:
     if not MANIFEST_PATH.exists():
         MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -133,10 +137,11 @@ def _normalise_properties(
             alias_map[alias] = (target_key, descriptor)
 
     normalised: Dict[str, str] = {}
+    unknown: List[str] = []
     for raw_key, raw_value in properties.items():
         mapping = alias_map.get(raw_key) or alias_map.get(_slug(raw_key))
         if not mapping:
-            normalised[raw_key] = raw_value
+            unknown.append(raw_key)
             continue
         target_key, descriptor = mapping
         value = raw_value
@@ -146,6 +151,12 @@ def _normalise_properties(
                 value = allowable.get("value")
                 break
         normalised[target_key] = value
+
+    if unknown:
+        unknown_keys = ", ".join(sorted(set(unknown)))
+        raise ControllerServiceProvisioningError(
+            f"Manifest references unknown controller service properties: {unknown_keys}"
+        )
     return normalised
 
 
@@ -165,93 +176,44 @@ def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
     )
     response.raise_for_status()
     existing = response.json().get("controllerServices") or []
-    existing_by_id = {item["id"]: item for item in existing}
-    existing_by_name = {item["component"]["name"]: item for item in existing}
+    if existing:
+        names = ", ".join(sorted(component.get("component", {}).get("name", "<unknown>") for component in existing))
+        raise ControllerServiceProvisioningError(
+            f"Expected clean NiFi root with no controller services; found: {names or '<unknown>'}. "
+            "Purge the instance before provisioning."
+        )
 
     key_to_id: Dict[str, str] = {}
     manifest_updated = False
 
     for entry in entries:
-        service_component: Optional[Dict[str, Any]] = None
-        if entry.id and entry.id in existing_by_id:
-            service_component = existing_by_id[entry.id]["component"]
-        elif entry.name in existing_by_name:
-            service_component = existing_by_name[entry.name]["component"]
-            entry.id = service_component["id"]
-            manifest_updated = True
+        descriptors = _fetch_service_descriptors(client, entry)
+        normalised_props = _normalise_properties(entry.properties, descriptors)
+        service = client.create_controller_service(
+            parent_id="root",
+            name=entry.name,
+            type_name=entry.type,
+            bundle=entry.bundle,
+            properties=normalised_props,
+        )
+        entry.id = service["id"]
+        manifest_updated = True
 
-        if service_component is None:
-            descriptors = _fetch_service_descriptors(client, entry)
-            normalised_props = _normalise_properties(entry.properties, descriptors, prefer_display=True)
-            service = client.create_controller_service(
-                parent_id="root",
-                name=entry.name,
-                type_name=entry.type,
-                bundle=entry.bundle,
-                properties=normalised_props,
-            )
-            entry.id = service["id"]
-            manifest_updated = True
-            service_component = service
-        else:
-            service_entity = client.get_controller_service(service_component["id"])
-            current_state = service_entity["component"].get("state")
-            if current_state in {"ENABLING", "DISABLING"}:
-                current_state = _wait_for_stable_state(client, service_component["id"])
-                service_entity = client.get_controller_service(service_component["id"])
-            component = service_entity["component"]
-            descriptors = component.get("descriptors") or {}
-            current_props = component.get("properties") or {}
-            desired_properties = _normalise_properties(entry.properties, descriptors)
-
-            update_payload = dict(current_props)
-            changed = False
-            for key, value in desired_properties.items():
-                if update_payload.get(key) != value:
-                    update_payload[key] = value
-                    changed = True
-
-            for key in list(update_payload.keys()):
-                if key not in descriptors and key not in desired_properties:
-                    update_payload.pop(key, None)
-                    changed = True
-
-            if changed:
-                if current_state != "DISABLED":
-                    client.disable_controller_service(service_component["id"])
-                    _wait_for_state(client, service_component["id"], "DISABLED", timeout=30.0)
-                    service_entity = client.get_controller_service(service_component["id"])
-                    current_state = service_entity["component"].get("state")
-                update_body = {
-                    "revision": service_entity["revision"],
-                    "component": {
-                        "id": service_component["id"],
-                        "properties": update_payload,
-                    },
-                }
-                client._client.put(
-                    f"/controller-services/{service_component['id']}",
-                    json=update_body,
-                ).raise_for_status()
-                current_state = "DISABLED"
-
-        service_id = entry.id
+        service_id = service["id"]
         key_to_id[entry.key] = service_id
 
-        expected_state = "ENABLED" if entry.auto_enable else "DISABLED"
-        entity = client.get_controller_service(service_id)
-        current_state = entity["component"].get("state")
-        if current_state in {"ENABLING", "DISABLING"}:
-            current_state = _wait_for_stable_state(client, service_id)
-        if expected_state == "ENABLED" and current_state != "ENABLED":
+        if entry.auto_enable:
             client.enable_controller_service(service_id)
             _wait_for_state(client, service_id, "ENABLED")
-        elif expected_state != "ENABLED" and current_state == "ENABLED":
-            client.disable_controller_service(service_id)
-            _wait_for_state(client, service_id, "DISABLED")
         else:
-            if current_state != expected_state:
-                _wait_for_state(client, service_id, expected_state)
+            _wait_for_state(client, service_id, "DISABLED")
+
+        entity = client.get_controller_service(service_id)
+        validation_errors = entity.get("component", {}).get("validationErrors") or []
+        if validation_errors:
+            raise ControllerServiceProvisioningError(
+                f"Controller service {entry.name} ({service_id}) invalid after provisioning: {validation_errors}"
+            )
 
     if manifest_updated:
         _save_manifest_entries(entries)

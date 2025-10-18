@@ -176,7 +176,7 @@ def test_create_json_record_services(nifi_token):
         reader_component = reader["component"]
         assert reader_component["state"] == "ENABLED"
         reader_props = reader_component.get("properties") or {}
-        assert "schema-access-strategy" in reader_props
+        assert reader_props.get("schema-access-strategy") == "infer-schema", reader_props
         assert reader_props.get("Schema Access Strategy") in (None, ""), reader_props
         assert not reader_component.get("validationErrors"), reader_component.get("validationErrors")
 
@@ -184,8 +184,8 @@ def test_create_json_record_services(nifi_token):
         writer_component = writer["component"]
         assert writer_component["state"] == "ENABLED"
         writer_props = writer_component.get("properties") or {}
-        assert "schema-write-strategy" in writer_props, writer_props
-        assert writer_props.get("Schema Write Strategy") in (None, ""), writer_props
+        assert writer_props.get("Schema Write Strategy") == "no-schema", writer_props
+        assert writer_props.get("schema-write-strategy") in (None, ""), writer_props
         assert not writer_component.get("validationErrors"), writer_component.get("validationErrors")
 
         with MANIFEST_PATH.open("r", encoding="utf-8") as fp:

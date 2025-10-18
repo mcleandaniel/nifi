@@ -68,6 +68,10 @@ docker run -d --name nifi \
 The integration tests assume NiFi is available at `https://localhost:8443/nifi-api` with the single-user credentials shown above.
 
 ## Tips for Consistent Environments
+- **Always purge first**. Treat every NiFi instance as dirty until proven otherwise.
+  Run the purge script or `nifi-automation purge-root` (once available) before provisioning
+  controller services or deploying flows. Skipping this step leaves stale controller
+  state behind and wastes cycles chasing ENABLING/INVALID loops.
 - Always run installs and commands from inside `automation/` so they target `automation/.venv`.
 - If Codex (or another tool) runs from the repo root, change into `automation/` before invoking `uv` or `pytest`:
   ```bash
@@ -77,7 +81,8 @@ The integration tests assume NiFi is available at `https://localhost:8443/nifi-a
   ```
 - Avoid mixing the repo-root `.venv` with `automation/.venv`; choose one and stick with it. The project defaults to `automation/.venv`.
 - When switching between shells/sessions, check `pwd` first. If you need to run commands from the repo root, prefix them with `cd automation && ...` to keep installs and test runs aligned.
-- If repeated changes keep failing (looping), fall back to the focused workflow: purge NiFi, run the standalone controller-service provisioning test, and use the scripted curl commands to inspect the state before attempting broader flow deployments again.
+- If repeated changes keep failing (looping), fall back to the focused workflow: **purge NiFi immediately**, run the standalone controller-service provisioning test, and use the scripted curl commands to inspect the state before attempting broader flow deployments again.
+- When automation encounters an `ENABLING`/`INVALID` controller service (or any state that needs human judgement), stop further mutations and output the minimal curl commands an operator can run locally. Avoid burning time on repeated retries that the operator can resolve faster with direct inspection.
 
 CLI options still override configuration at runtime. Settings are also loaded from
 an `.env` file located at the repository root—useful when running commands from

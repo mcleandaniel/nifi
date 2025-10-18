@@ -55,13 +55,12 @@ class TestNormaliseProperties:
 
         assert normalised["schema-write-strategy"] == "no-schema"
 
-    def test_preserves_unknown_keys(self):
+    def test_raises_on_unknown_keys(self):
         descriptors = _descriptor_stub()
         properties = {"custom-property": "abc123"}
 
-        normalised = registry._normalise_properties(properties, descriptors)
-
-        assert normalised["custom-property"] == "abc123"
+        with pytest.raises(registry.ControllerServiceProvisioningError):
+            registry._normalise_properties(properties, descriptors)
 
     def test_empty_properties_returns_empty_dict(self):
         descriptors = _descriptor_stub()

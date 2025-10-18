@@ -7,15 +7,17 @@
 - Always disable a controller service before updating properties; re-enable only after NiFi has applied the changes and reported no validation errors.
 
 ## Troubleshooting Flow (Regression Workflow)
-1. Purge the NiFi root process group (`purge_root`).
+1. **Purge the NiFi root process group (`purge_root`) before doing anything else.**
+   Assume the instance is dirty until you personally cleared it this session.
 2. Run a focused provisioning test that calls `ensure_root_controller_services` and asserts:
    - The expected controller-service IDs exist.
    - Properties contain only canonical keys and no validation errors.
+   - If any service remains in `ENABLING` or `INVALID`, **stop immediately** and capture the reproduction commands (token fetch + service inspection) instead of looping on automation retries.
 3. Use the scripted curl commands:
-   ```bash
-   set -a; source .env; set +a
-   TOKEN=$(curl -sk -X POST "${NIFI_BASE_URL}/access/token" -d "username=${NIFI_USERNAME}&password=${NIFI_PASSWORD}")
-   curl -sk -H "Authorization: Bearer $TOKEN" \
+  ```bash
+  set -a; source .env; set +a
+  TOKEN=$(curl -sk -X POST "${NIFI_BASE_URL}/access/token" -d "username=${NIFI_USERNAME}&password=${NIFI_PASSWORD}")
+  curl -sk -H "Authorization: Bearer $TOKEN" \
      "${NIFI_BASE_URL}/controller-services/${SERVICE_ID}" \
      | jq '.component | {name, state, validationErrors, properties}'
    ```
@@ -50,6 +52,8 @@ curl -sk -H "Authorization: Bearer $TOKEN" \
   | jq '.component | {name, state, validationErrors, properties}'
 ```
 Replace `<service-id>` with the UUID reported in the first command.
+
+- When run as part of automation, emit these commands for the operator rather than attempting further REST updates while the service is unstable. This keeps investigation efficient and avoids thrashing NiFi with redundant mutations.
 
 ---
 

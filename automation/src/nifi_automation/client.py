@@ -262,9 +262,9 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         revision = entity.get("revision") or {}
         body = {
             "revision": revision,
-            "component": {"id": service_id, "state": "ENABLED"},
+            "state": "ENABLED",
         }
-        response = self._client.put(f"/controller-services/{service_id}", json=body)
+        response = self._client.put(f"/controller-services/{service_id}/run-status", json=body)
         response.raise_for_status()
 
     def disable_controller_service(self, service_id: str) -> None:
@@ -272,9 +272,9 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         revision = entity.get("revision") or {}
         body = {
             "revision": revision,
-            "component": {"id": service_id, "state": "DISABLED"},
+            "state": "DISABLED",
         }
-        response = self._client.put(f"/controller-services/{service_id}", json=body)
+        response = self._client.put(f"/controller-services/{service_id}/run-status", json=body)
         response.raise_for_status()
 
     def delete_controller_service(self, service_id: str) -> None:
