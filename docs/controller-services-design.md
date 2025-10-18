@@ -42,8 +42,8 @@ This process assumes **no existing controller services** are deployed. It should
 ## Workflow
 
 1. **Purge root group**
-   Use `purge_root()` to delete all processors, controller services, and queues.
-   This guarantees a pristine environment.
+   Use `scripts/purge_nifi_root.py` (or equivalent future CLI) to delete all processors, controller services,
+   connections, and queued FlowFiles from the root process group. This guarantees a pristine environment.
 
 2. **Load manifest**
    Parse `controller-services.json` into memory; validate structure and required fields.

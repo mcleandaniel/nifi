@@ -98,48 +98,11 @@ nifi-automation auth-token \
 
 When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`), follow this sequence:
 
-1. **Purge** – clear the root process group and controller services before every deploy. Until a dedicated CLI exists, the quickest method is the inline helper:
+1. **Purge** – clear the root process group and controller services before every deploy:
    ```bash
    cd automation
    set -a; source ../.env; set +a
-   .venv/bin/python - <<'PY'
-   import time
-   from nifi_automation.auth import obtain_access_token
-   from nifi_automation.config import build_settings
-   from nifi_automation.client import NiFiClient
-
-   settings = build_settings(None, None, None, False, 10.0)
-   token = obtain_access_token(settings)
-   with NiFiClient(settings, token) as client:
-       resp = client._client.get("/flow/process-groups/root/controller-services", params={"includeInherited": "false"})
-       resp.raise_for_status()
-       for svc in resp.json().get("controllerServices") or []:
-           comp = svc.get("component", {}) or {}
-           svc_id = comp.get("id")
-           if not svc_id:
-               continue
-           try:
-               client.disable_controller_service(svc_id)
-           except Exception:
-               pass
-           deadline = time.time() + 30
-           while time.time() < deadline:
-               state = client.get_controller_service(svc_id)["component"].get("state")
-               if state == "DISABLED":
-                   break
-               time.sleep(0.5)
-           client.delete_controller_service(svc_id)
-
-       flow = client._client.get("/flow/process-groups/root").json()["processGroupFlow"]["flow"]
-       for pg in flow.get("processGroups", []) or []:
-           client.delete_process_group_recursive(pg["component"]["id"])
-       for processor in flow.get("processors", []) or []:
-           proc_id = processor["component"]["id"]
-           revision = processor.get("revision") or {}
-           body = {"revision": revision, "component": {"id": proc_id, "state": "STOPPED"}}
-           client._client.put(f"/processors/{proc_id}", json=body).raise_for_status()
-           client._client.delete(f"/processors/{proc_id}", params={"version": revision.get("version", 0), "clientId": "nifi-automation"}).raise_for_status()
-   PY
+   .venv/bin/python scripts/purge_nifi_root.py
    ```
 2. **Deploy** – call `nifi-automation deploy-flow flows/simple.yaml`. The command:
    - Ensures the manifest controller services exist (fail-fast if anything is already present).

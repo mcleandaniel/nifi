@@ -30,7 +30,10 @@
 - Regenerate the controller-service report once the manifest behaves correctly; verify that services such as `JsonRecordSetWriter` show as VALID in NiFi’s UI.
 
 ## Utility Script
-Run `automation/scripts/provision_json_services.py` to purge NiFi, reprovision the JsonTreeReader/JsonRecordSetWriter services, and dump their state (including validation errors and properties). The script is a diagnostic aid; the standard `nifi-automation deploy-flow` command now provisions services automatically when the instance is clean.
+Run `automation/scripts/purge_nifi_root.py` to clear the root PG (queues, processors, controller services) before
+deployments. For deeper diagnostics, `automation/scripts/provision_json_services.py` can still reprovision the
+JsonTreeReader/JsonRecordSetWriter services and dump their state; however, the standard
+`nifi-automation deploy-flow` command now provisions services automatically when the instance is clean.
 ```bash
 cd automation
 RUN_NIFI_INTEGRATION=1 .venv/bin/python scripts/provision_json_services.py

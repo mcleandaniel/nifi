@@ -6,8 +6,7 @@
       "type": "org.apache.nifi.json.JsonTreeReader",
       "properties": {
         "schema-access-strategy": "infer-schema"
-      },
-      "id": "f7fe2038-0199-1000-c3c9-56ae130de291"
+      }
     },
     {
       "key": "json-writer",
@@ -15,8 +14,7 @@
       "type": "org.apache.nifi.json.JsonRecordSetWriter",
       "properties": {
         "schema-write-strategy": "no-schema"
-      },
-      "id": "f7fe254e-0199-1000-54a3-f49a0660ff3d"
+      }
     }
   ]
 }
