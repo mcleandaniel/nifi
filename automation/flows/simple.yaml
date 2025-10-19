@@ -9,6 +9,7 @@ process_group:
           name: GenerateRecord
           type: org.apache.nifi.processors.standard.GenerateRecord
           position: [0, 0]
+          scheduling_period: '1 min'
           properties:
             record-writer: json-writer
             number-of-records: "1"

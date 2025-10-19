@@ -45,6 +45,7 @@ process_group:
           name: Generate FlowFile
           type: org.apache.nifi.processors.standard.GenerateFlowFile
           position: [0, 0]
+          scheduling_period: '1 min'
           properties:
             Batch Size: "1"
         - id: log
@@ -66,6 +67,7 @@ process_group:
           name: GenerateRecord
           type: org.apache.nifi.processors.standard.GenerateRecord
           position: [0, 0]
+          scheduling_period: '1 min'
           properties:
             record-writer: json-writer
             number-of-records: "1"
@@ -141,6 +143,7 @@ process_group:
 - `process_groups` for nested structures (e.g., `NestedWorkflow` containing `SubFunction`)
 - `ports` with separate lists for `input_ports` and `output_ports`
 - Controller-service references that resolve against `automation/manifest/controller-services.json`
+- Optional scheduling hints per processor via `scheduling_period` (e.g., `'1 min'`) and `scheduling_strategy`
 
 **Future additions still under design**
 - `parameter_context`

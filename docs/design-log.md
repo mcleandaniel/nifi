@@ -13,6 +13,7 @@ This log captures key decisions, ideas, and open questions as the automation evo
 - **Purge reliability**: Reworked `purge_nifi_root.py` to remove parent-level connections before drilling into child groups, eliminating NiFi’s 409 conflicts on port deletion. Integration suite now completes cleanly.
 - **Diagnostics polish**: `collect_invalid_ports` no longer flags ports whose `validationStatus` is `null` but have no validation errors, reducing false positives in the integration checks.
 - **Nested ports refactor**: `NestedPortsWorkflow` now owns its data source and routes through a nested `NestedPortsSubflow` process group that exposes the input/output ports. Root-level feeder/sink processors were removed so the flow demonstrates intra-group port usage instead of root-level ports.
+- **Scheduling hints**: Processor specs accept optional `scheduling_period`/`scheduling_strategy`; sample flows now set all Generate* processors to run every minute while leaving other processors on NiFi defaults.
 
 ---
 ## 2025-10-14

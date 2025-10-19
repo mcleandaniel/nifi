@@ -13,6 +13,7 @@ process_group:
               name: Generate FlowFile (Sub)
               type: org.apache.nifi.processors.standard.GenerateFlowFile
               position: [0, 0]
+              scheduling_period: '1 min'
               properties:
                 Batch Size: "1"
             - id: nested-sub-log

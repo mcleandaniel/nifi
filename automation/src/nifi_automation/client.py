@@ -130,8 +130,16 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         type_name: str,
         position: tuple[float, float],
         properties: Optional[Dict[str, str]] = None,
+        *,
+        scheduling_strategy: Optional[str] = None,
+        scheduling_period: Optional[str] = None,
     ) -> Dict[str, Any]:
         bundle = self._resolve_bundle(type_name)
+        config = {
+            "properties": properties or {},
+            "schedulingPeriod": scheduling_period or "0 sec",
+            "schedulingStrategy": scheduling_strategy or "TIMER_DRIVEN",
+        }
         body = {
             "revision": {"version": 0},
             "component": {
@@ -139,11 +147,7 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
                 "type": type_name,
                 "bundle": bundle,
                 "position": {"x": position[0], "y": position[1]},
-                "config": {
-                    "properties": properties or {},
-                    "schedulingPeriod": "0 sec",
-                    "schedulingStrategy": "TIMER_DRIVEN",
-                },
+                "config": config,
             },
         }
         response = self._client.post(f"/process-groups/{parent_id}/processors", json=body)

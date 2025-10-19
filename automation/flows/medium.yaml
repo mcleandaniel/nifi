@@ -9,6 +9,7 @@ process_group:
           name: Generate FlowFile
           type: org.apache.nifi.processors.standard.GenerateFlowFile
           position: [0, 0]
+          scheduling_period: '1 min'
           properties:
             Batch Size: "1"
             Data Format: Text

@@ -18,6 +18,8 @@ class ProcessorSpec:
     type: str
     position: Tuple[float, float]
     properties: Dict[str, str]
+    scheduling_strategy: Optional[str] = None
+    scheduling_period: Optional[str] = None
 
 
 @dataclass
@@ -290,12 +292,20 @@ def _parse_process_group(
         if key in seen_ids:
             raise FlowDeploymentError(f"Duplicate processor id '{key}' in group '{name}'")
         seen_ids.add(key)
+        raw_schedule_period = item.get("scheduling_period")
+        if raw_schedule_period is None:
+            raw_schedule_period = item.get("schedulingPeriod")
+
         proc = ProcessorSpec(
             key=key,
             name=item.get("name", key),
             type=item.get("type"),
             position=_ensure_position(item.get("position"), idx * 400.0),
             properties=item.get("properties") or {},
+            scheduling_strategy=item.get("scheduling_strategy") or item.get("schedulingStrategy"),
+            scheduling_period=_normalize_property_value(raw_schedule_period)
+            if raw_schedule_period is not None
+            else None,
         )
         if not proc.type:
             raise FlowDeploymentError(f"Processor '{key}' in group '{name}' missing 'type'")
@@ -568,6 +578,8 @@ class FlowDeployer:
                 type_name=spec.type,
                 position=spec.position,
                 properties=prepared.properties,
+                scheduling_strategy=spec.scheduling_strategy,
+                scheduling_period=spec.scheduling_period,
             )
             processor_id_map[spec.key] = (created["id"], parent_pg_id)
             if prepared.auto_terminate:

@@ -15,6 +15,7 @@ process_group:
       position:
       - 0
       - 0
+      scheduling_period: '1 min'
       properties:
         Batch Size: '1'
         Data Format: Text
