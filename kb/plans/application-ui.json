@@ -1,218 +1,108 @@
 {
   "version": "1",
-  "generated_at": "2025-10-18T16:00:00Z",
+  "generated_at": "2025-10-19T07:19:09Z",
   "repo_root": ".",
   "scope": "application",
-  "application": {
-    "id": "application-ui",
-    "name": "NiFi Web Console",
-    "kind": "application",
-    "entrypoints": [
-      "nifi-frontend/src/main/frontend/apps/nifi/",
-      "nifi-frontend/src/main/frontend/package.json",
-      "nifi-frontend/src/main/frontend/nx.json"
-    ],
-    "artifacts": [
-      "nifi-frontend/src/main/frontend/apps/nifi/project.json",
-      "nifi-frontend/target/",
-      "nifi-assembly/src/main/assembly/"
-    ]
-  },
   "topics": [
     {
-      "id": "ui-overview-and-build",
-      "title": "UI Overview and Build",
-      "summary": "Describe the purpose of the web console, technology stack, and how to build the application with Nx.",
-      "category": "development",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/",
-        "nifi-frontend/src/main/frontend/package.json",
-        "README.md"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["overview", "build", "nx"],
-      "research_request": "Document the NiFi web console stack and build steps using Nx scripts."
-    },
-    {
-      "id": "project-structure",
-      "title": "Project Structure",
-      "summary": "Explain the application module layout, shared libraries, and project configuration files.",
+      "id": "application-ui-frontend-architecture",
+      "title": "Frontend Workspace Architecture",
+      "summary": "Describe the Nx workspace layout, application boundaries, and shared libraries that compose the NiFi UI.",
       "category": "architecture",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/",
-        "nifi-frontend/src/main/frontend/libs/shared/",
-        "nifi-frontend/src/main/frontend/nx.json"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-frontend/src/main/frontend/README.md", "nifi-frontend/src/main/frontend/apps/nifi/"],
       "priority": "high",
-      "tags": ["structure", "modules", "architecture"],
-      "research_request": "Describe the NiFi UI project structure including shared libraries and Nx project configuration."
+      "tags": ["frontend", "architecture", "nx"],
+      "research_request": "Outline workspace structure, module boundaries, and how legacy UIs are staged for modernization."
     },
     {
-      "id": "data-fetching-and-api-integration",
-      "title": "Data Fetching and API Integration",
-      "summary": "Detail how the UI communicates with backend APIs, including client utilities and error handling.",
+      "id": "application-ui-state-management",
+      "title": "NgRx State Management Patterns",
+      "summary": "Explain how NgRx stores, selectors, and effects are organized across global and feature scopes.",
       "category": "development",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-frontend/src/main/frontend/libs/shared/",
-        "nifi-framework-bundle/nifi-framework/nifi-web/"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/src/app/state/"],
       "priority": "high",
-      "tags": ["api", "http", "integration"],
-      "research_request": "Explain API integration patterns within the NiFi web console, highlighting key services and error handling."
+      "tags": ["ngrx", "state", "redux"],
+      "research_request": "Document store modules, lazy loading strategy, and guidelines for adding new state slices."
     },
     {
-      "id": "state-management",
-      "title": "State Management",
-      "summary": "Describe state management patterns, stores, and how UI components share runtime data.",
-      "category": "architecture",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-frontend/src/main/frontend/libs/shared/",
-        "docs/design-log.md"
-      ],
-      "dependencies": [],
+      "id": "application-ui-rest-integrations",
+      "title": "REST Integration Layer",
+      "summary": "Describe HTTP interceptors, services, and API clients that connect the UI to NiFi backends.",
+      "category": "integration",
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/src/app/service/", "nifi-frontend/src/main/frontend/apps/nifi/src/app/service/interceptors/"] ,
       "priority": "medium",
-      "tags": ["state", "architecture", "frontend"],
-      "research_request": "Document state management strategies used by the NiFi UI and associated supporting libraries."
+      "tags": ["rest", "http", "integration"],
+      "research_request": "Explain request pipelines, error handling, and authentication token reuse across services."
     },
     {
-      "id": "authentication-flows",
-      "title": "Authentication Flows",
-      "summary": "Explain how the UI handles login, session management, and single sign-on integrations.",
+      "id": "application-ui-build-tooling",
+      "title": "Build and Task Orchestration",
+      "summary": "Summarize build commands, executors, and lint/test tooling used for the frontend workspace.",
+      "category": "development",
+      "recommended_sources": ["nifi-frontend/src/main/frontend/package.json", "nifi-frontend/src/main/frontend/nx.json", "nifi-frontend/src/main/frontend/apps/nifi/project.json"],
+      "priority": "medium",
+      "tags": ["build", "tooling", "nx"],
+      "research_request": "Document configured Nx targets, npm scripts, and how they integrate with CI pipelines."
+    },
+    {
+      "id": "application-ui-testing-strategy",
+      "title": "Testing and Quality Gates",
+      "summary": "Explain unit testing, coverage, and linting strategy for the UI codebase.",
+      "category": "quality",
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/jest.config.ts", "nifi-frontend/src/main/frontend/jest.preset.js"],
+      "priority": "medium",
+      "tags": ["testing", "jest", "quality"],
+      "research_request": "Detail test setup, coverage expectations, and how Nx orchestrates lint and test tasks."
+    },
+    {
+      "id": "application-ui-styling-system",
+      "title": "Styling and Asset Pipeline",
+      "summary": "Describe global styling, SCSS usage, and how shared assets are managed across applications.",
+      "category": "design",
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/src/styles.scss", "nifi-frontend/src/main/frontend/libs/shared/"] ,
+      "priority": "low",
+      "tags": ["scss", "styling", "assets"],
+      "research_request": "Summarize styling conventions, shared component styling, and asset bundling."
+    },
+    {
+      "id": "application-ui-module-ecosystem",
+      "title": "Supporting UI Modules",
+      "summary": "Inventory auxiliary applications such as Jolt Transform, Registry UI, and content viewers within the workspace.",
+      "category": "architecture",
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi-jolt-transform-ui/", "nifi-frontend/src/main/frontend/apps/standard-content-viewer/", "nifi-frontend/src/main/frontend/apps/nifi-registry/"] ,
+      "priority": "medium",
+      "tags": ["modules", "microfrontend", "workspace"],
+      "research_request": "Describe responsibilities of each auxiliary app and how they integrate with the primary NiFi UI."
+    },
+    {
+      "id": "application-ui-routing-shell",
+      "title": "Routing and Shell Navigation",
+      "summary": "Explain the routing configuration, lazy loading, and feature shell structure for the main UI.",
+      "category": "development",
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/src/app/pages/", "nifi-frontend/src/main/frontend/apps/nifi/src/app/service/guard/"] ,
+      "priority": "medium",
+      "tags": ["routing", "navigation", "angular"],
+      "research_request": "Detail router modules, guard usage, and how navigation ties into state management."
+    },
+    {
+      "id": "application-ui-authentication-flow",
+      "title": "Authentication and Session Handling",
+      "summary": "Describe login flows, token persistence, and session timeout handling in the UI.",
       "category": "security",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-frontend/src/main/frontend/libs/shared/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/src/app/pages/login/", "nifi-frontend/src/main/frontend/apps/nifi/src/app/state/current-user/"] ,
       "priority": "high",
       "tags": ["authentication", "session", "security"],
-      "research_request": "Describe NiFi UI authentication flows and how sessions are managed within the frontend."
+      "research_request": "Explain login UX, cookie usage, and how authenticated state is shared across modules."
     },
     {
-      "id": "authorization-ux",
-      "title": "Authorization UX",
-      "summary": "Describe how access policies affect UI rendering, feature gating, and admin workflows.",
-      "category": "ui",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-framework-bundle/nifi-framework/nifi-framework-authorization/",
-        "nifi-docs/src/main/asciidoc/user-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["authorization", "ui", "policies"],
-      "research_request": "Explain how authorization policies influence the NiFi UI, including conditional rendering and admin tools."
-    },
-    {
-      "id": "styling-and-theming",
-      "title": "Styling and Theming",
-      "summary": "Explain styling approach, Tailwind configuration, and customization options for branding.",
-      "category": "ui",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/tailwind.config.js",
-        "nifi-frontend/src/main/frontend/apps/nifi/src/styles.scss",
-        "nifi-frontend/src/main/frontend/libs/shared/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["styling", "tailwind", "theme"],
-      "research_request": "Document styling conventions and theming options for the NiFi web console."
-    },
-    {
-      "id": "accessibility-and-i18n",
-      "title": "Accessibility and Internationalization",
-      "summary": "Detail accessibility considerations, ARIA usage, and localization support in the UI.",
-      "category": "ui",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-frontend/src/main/frontend/libs/shared/",
-        "nifi-docs/src/main/asciidoc/user-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "low",
-      "tags": ["accessibility", "i18n", "ui"],
-      "research_request": "Explain accessibility practices and internationalization support implemented in the NiFi UI."
-    },
-    {
-      "id": "dev-environment-and-tooling",
-      "title": "Dev Environment and Tooling",
-      "summary": "Describe local development workflow, Nx targets, hot reload, and proxy configuration.",
-      "category": "development",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/project.json",
-        "nifi-frontend/src/main/frontend/proxy.config.mjs",
-        "nifi-frontend/src/main/frontend/package.json"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["development", "tooling", "proxy"],
-      "research_request": "Document local development workflow for the NiFi UI including Nx targets and proxy setup."
-    },
-    {
-      "id": "testing-strategy",
-      "title": "Testing Strategy",
-      "summary": "Detail unit, integration, and end-to-end testing tools configured for the UI project.",
-      "category": "testing",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/jest.config.ts",
-        "nifi-frontend/src/main/frontend/apps/nifi/setup-jest.ts",
-        "nifi-frontend/src/main/frontend/libs/shared/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["testing", "jest", "frontend"],
-      "research_request": "Explain the testing approach for the NiFi UI including Jest configuration and shared test utilities."
-    },
-    {
-      "id": "build-and-deployment",
-      "title": "Build and Deployment",
-      "summary": "Summarize production build targets, output artifacts, and integration with NiFi packaging.",
+      "id": "application-ui-deployment-builds",
+      "title": "Frontend Build Outputs and Deployment",
+      "summary": "Detail build outputs, bundling, and deployment integration with the NiFi server distribution.",
       "category": "deployment",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/project.json",
-        "nifi-frontend/target/",
-        "nifi-assembly/src/main/assembly/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["build", "deployment", "artifacts"],
-      "research_request": "Document how the NiFi UI is built for production and bundled into NiFi distributions."
-    },
-    {
-      "id": "runtime-observability-ui",
-      "title": "Runtime Observability UI",
-      "summary": "Explain how the UI surfaces metrics, provenance, and alerts for operators.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-docs/src/main/asciidoc/user-guide.adoc",
-        "docs/design-log.md"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-frontend/src/main/frontend/apps/nifi/project.json", "nifi-frontend/pom.xml"],
       "priority": "low",
-      "tags": ["observability", "ui", "monitoring"],
-      "research_request": "Describe UI components that present NiFi observability data and how they interact with backend APIs."
-    },
-    {
-      "id": "error-handling-and-notifications",
-      "title": "Error Handling and Notifications",
-      "summary": "Detail UI mechanisms for surfacing errors, banners, and operator notifications.",
-      "category": "ui",
-      "recommended_sources": [
-        "nifi-frontend/src/main/frontend/apps/nifi/src/app/",
-        "nifi-frontend/src/main/frontend/libs/shared/",
-        "nifi-docs/src/main/asciidoc/user-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "low",
-      "tags": ["error", "notifications", "ui"],
-      "research_request": "Explain how the NiFi UI handles error messaging, alerts, and operator notifications."
+      "tags": ["deployment", "build", "bundling"],
+      "research_request": "Describe production build configuration, asset hashing, and how artifacts move into NiFi assemblies."
     }
   ]
 }

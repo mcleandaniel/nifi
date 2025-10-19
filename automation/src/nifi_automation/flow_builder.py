@@ -29,6 +29,14 @@ class ConnectionSpec:
 
 
 @dataclass
+class PortSpec:
+    key: str
+    name: str
+    position: Tuple[float, float]
+    allow_remote: bool = False
+    comments: Optional[str] = None
+
+
 @dataclass
 class ProcessGroupSpec:
     name: str
@@ -37,6 +45,8 @@ class ProcessGroupSpec:
     connections: List[ConnectionSpec] = field(default_factory=list)
     auto_terminate: Dict[str, List[str]] = field(default_factory=dict)
     child_groups: List["ProcessGroupSpec"] = field(default_factory=list)
+    input_ports: List[PortSpec] = field(default_factory=list)
+    output_ports: List[PortSpec] = field(default_factory=list)
 
 
 @dataclass
@@ -291,6 +301,62 @@ def _parse_process_group(
             raise FlowDeploymentError(f"Processor '{key}' in group '{name}' missing 'type'")
         processors.append(proc)
 
+    input_ports: List[PortSpec] = []
+    for idx, item in enumerate(data.get("input_ports") or []):
+        if not isinstance(item, Mapping):
+            raise FlowDeploymentError("Input port definitions must be mappings")
+        key = item.get("id")
+        if not key:
+            raise FlowDeploymentError(f"Input port in group '{name}' missing 'id'")
+        if key in seen_ids:
+            raise FlowDeploymentError(
+                f"Duplicate component id '{key}' in group '{name}' (used by processor or port)"
+            )
+        seen_ids.add(key)
+        port = PortSpec(
+            key=key,
+            name=item.get("name", key),
+            position=_ensure_position(item.get("position"), idx * 400.0),
+            allow_remote=bool(item.get("allow_remote", False)),
+            comments=item.get("comments"),
+        )
+        input_ports.append(port)
+
+    output_ports: List[PortSpec] = []
+    for idx, item in enumerate(data.get("output_ports") or []):
+        if not isinstance(item, Mapping):
+            raise FlowDeploymentError("Output port definitions must be mappings")
+        key = item.get("id")
+        if not key:
+            raise FlowDeploymentError(f"Output port in group '{name}' missing 'id'")
+        if key in seen_ids:
+            raise FlowDeploymentError(
+                f"Duplicate component id '{key}' in group '{name}' (used by processor or port)"
+            )
+        seen_ids.add(key)
+        port = PortSpec(
+            key=key,
+            name=item.get("name", key),
+            position=_ensure_position(item.get("position"), idx * 400.0),
+            allow_remote=bool(item.get("allow_remote", False)),
+            comments=item.get("comments"),
+        )
+        output_ports.append(port)
+
+    child_groups: List[ProcessGroupSpec] = []
+    for child_idx, child in enumerate(data.get("process_groups") or []):
+        if not isinstance(child, Mapping):
+            raise FlowDeploymentError("process_groups entries must be mappings")
+        child_groups.append(_parse_process_group(child, fallback_x=0.0, index=child_idx))
+
+    for child in child_groups:
+        for port in child.input_ports:
+            seen_ids.add(port.key)
+        for port in child.output_ports:
+            seen_ids.add(port.key)
+        for processor in child.processors:
+            seen_ids.add(processor.key)
+
     auto_terminate = data.get("auto_terminate") or {}
     connections: List[ConnectionSpec] = []
     for item in data.get("connections") or []:
@@ -302,7 +368,11 @@ def _parse_process_group(
             raise FlowDeploymentError(
                 f"Connection in group '{name}' references unknown processors: {source} -> {destination}"
             )
-        relationships = item.get("relationships") or ["success"]
+        raw_relationships = item.get("relationships")
+        if raw_relationships is None:
+            relationships = ["success"]
+        else:
+            relationships = list(raw_relationships)
         connections.append(
             ConnectionSpec(
                 name=item.get("name", f"{source}-to-{destination}"),
@@ -312,12 +382,6 @@ def _parse_process_group(
             )
         )
 
-    child_groups: List[ProcessGroupSpec] = []
-    for child_idx, child in enumerate(data.get("process_groups") or []):
-        if not isinstance(child, Mapping):
-            raise FlowDeploymentError("process_groups entries must be mappings")
-        child_groups.append(_parse_process_group(child, fallback_x=0.0, index=child_idx))
-
     return ProcessGroupSpec(
         name=name,
         position=position,
@@ -325,6 +389,8 @@ def _parse_process_group(
         connections=connections,
         auto_terminate={key: list(value) for key, value in (auto_terminate or {}).items()},
         child_groups=child_groups,
+        input_ports=input_ports,
+        output_ports=output_ports,
     )
 
 
@@ -431,9 +497,8 @@ class FlowDeployer:
         for conn in connections:
             metadata = metadata_by_key.get(conn.source)
             if metadata is None:
-                raise FlowDeploymentError(
-                    f"Connection '{conn.name}' references unknown processor '{conn.source}'"
-                )
+                # Source might be an input/output port; skip relationship tracking for ports.
+                continue
             relationships = metadata.get("supportedRelationships") or metadata.get("relationships") or []
             relationship_map = {
                 (rel.get("name") or "").lower(): rel.get("name")
@@ -466,11 +531,35 @@ class FlowDeployer:
                 if value in controller_service_id_map:
                     prepared.properties[prop] = controller_service_id_map[value]
 
-    def _deploy_group_contents(self, parent_pg_id: str, group_spec: ProcessGroupSpec) -> None:
+    def _deploy_group_contents(
+        self, parent_pg_id: str, group_spec: ProcessGroupSpec
+    ) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+        input_port_id_map: Dict[str, Tuple[str, str]] = {}
+        for port in group_spec.input_ports:
+            created = self.client.create_input_port(
+                parent_id=parent_pg_id,
+                name=port.name,
+                position=port.position,
+                allow_remote=port.allow_remote,
+                comments=port.comments,
+            )
+            input_port_id_map[port.key] = (created["id"], parent_pg_id)
+
+        output_port_id_map: Dict[str, Tuple[str, str]] = {}
+        for port in group_spec.output_ports:
+            created = self.client.create_output_port(
+                parent_id=parent_pg_id,
+                name=port.name,
+                position=port.position,
+                allow_remote=port.allow_remote,
+                comments=port.comments,
+            )
+            output_port_id_map[port.key] = (created["id"], parent_pg_id)
+
         prepared_processors = self._prepare_processors(group_spec)
         self._apply_controller_service_mappings(prepared_processors, self.controller_service_map)
 
-        processor_id_map: Dict[str, str] = {}
+        processor_id_map: Dict[str, Tuple[str, str]] = {}
         for prepared in prepared_processors:
             spec = prepared.spec
             created = self.client.create_processor(
@@ -480,18 +569,9 @@ class FlowDeployer:
                 position=spec.position,
                 properties=prepared.properties,
             )
-            processor_id_map[spec.key] = created["id"]
+            processor_id_map[spec.key] = (created["id"], parent_pg_id)
             if prepared.auto_terminate:
                 self.client.update_processor_autoterminate(created["id"], prepared.auto_terminate)
-
-        for conn in group_spec.connections:
-            self.client.create_connection(
-                parent_id=parent_pg_id,
-                name=conn.name,
-                source_id=processor_id_map[conn.source],
-                destination_id=processor_id_map[conn.destination],
-                relationships=conn.relationships,
-            )
 
         for child in group_spec.child_groups:
             existing_child = self.client.find_child_process_group_by_name(parent_pg_id, child.name)
@@ -503,7 +583,49 @@ class FlowDeployer:
                 position=child.position,
             )
             child_id = child_entity["id"]
-            self._deploy_group_contents(child_id, child)
+            child_proc_map, child_in_map, child_out_map = self._deploy_group_contents(child_id, child)
+            processor_id_map.update(child_proc_map)
+            input_port_id_map.update(child_in_map)
+            output_port_id_map.update(child_out_map)
+
+        for conn in group_spec.connections:
+            source_id, source_type, source_group = self._resolve_component_id(
+                conn.source, processor_id_map, input_port_id_map, output_port_id_map
+            )
+            destination_id, destination_type, destination_group = self._resolve_component_id(
+                conn.destination, processor_id_map, input_port_id_map, output_port_id_map
+            )
+            self.client.create_connection(
+                parent_id=parent_pg_id,
+                name=conn.name,
+                source_id=source_id,
+                destination_id=destination_id,
+                relationships=conn.relationships,
+                source_type=source_type,
+                destination_type=destination_type,
+                source_group_id=source_group,
+                destination_group_id=destination_group,
+            )
+
+        return processor_id_map, input_port_id_map, output_port_id_map
+
+    def _resolve_component_id(
+        self,
+        key: str,
+        processor_map: Mapping[str, Tuple[str, str]],
+        input_port_map: Mapping[str, Tuple[str, str]],
+        output_port_map: Mapping[str, Tuple[str, str]],
+    ) -> Tuple[str, str, str]:
+        if key in processor_map:
+            component_id, group_id = processor_map[key]
+            return component_id, "PROCESSOR", group_id
+        if key in input_port_map:
+            component_id, group_id = input_port_map[key]
+            return component_id, "INPUT_PORT", group_id
+        if key in output_port_map:
+            component_id, group_id = output_port_map[key]
+            return component_id, "OUTPUT_PORT", group_id
+        raise FlowDeploymentError(f"Connection references unknown component '{key}'")
 
 
 def deploy_flow_from_file(

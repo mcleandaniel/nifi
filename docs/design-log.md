@@ -3,6 +3,18 @@
 This log captures key decisions, ideas, and open questions as the automation evolves. Entries are chronological (latest first).
 
 ---
+## 2025-10-19
+- **Root flow consolidation**: All specs now require a `NiFi Flow` root node that deploys directly into NiFi’s built-in root PG. Removed the previous pattern that created a duplicate `/NiFi Flow/NiFi Flow/...` hierarchy.
+- **Flow library uplift**: Added `medium.yaml`, `complex.yaml`, `nested.yaml`, and `nested_ports.yaml` alongside `trivial.yaml` and `simple.yaml`. A consolidated `NiFi_Flow.yaml` deploys all six child groups for the default integration run.
+- **Port support**: Introduced `PortSpec`, `collect_invalid_ports`, and deployment logic to create/validate input and output ports. Integration suite now asserts port presence and invalid-state diagnostics.
+- **Diagnostics wrapper**: Added `automation/scripts/check_invalid_components.py` to aggregate invalid processors and ports, returning JSON and non-zero exit codes for CI visibility.
+- **Purge guardrails**: Updated workflow docs and scripts to enforce “purge before every batch, never after tests.” Identified outstanding bug where port deletion hits HTTP 409 when queues still exist; follow-up work queued to tear down connections prior to delete.
+- **Static scripts over ad-hoc snippets**: Replaced dynamic Python snippets with reusable scripts (`deploy_flows.py`, `run_integration_suite.sh`) to minimise human-driven variations and ensure purge + diagnostics happen in a consistent order.
+- **Purge reliability**: Reworked `purge_nifi_root.py` to remove parent-level connections before drilling into child groups, eliminating NiFi’s 409 conflicts on port deletion. Integration suite now completes cleanly.
+- **Diagnostics polish**: `collect_invalid_ports` no longer flags ports whose `validationStatus` is `null` but have no validation errors, reducing false positives in the integration checks.
+- **Nested ports refactor**: `NestedPortsWorkflow` now owns its data source and routes through a nested `NestedPortsSubflow` process group that exposes the input/output ports. Root-level feeder/sink processors were removed so the flow demonstrates intra-group port usage instead of root-level ports.
+
+---
 ## 2025-10-14
 - **Metadata-driven validation**: Flow deployer now pulls processor definitions from `/flow/processor-definition/...` so property names, allowable values, and relationship lists are resolved per NiFi bundle. Spec entries must use UI-facing property names (e.g., `Batch Size`), and invalid/unknown properties fail fast before REST mutations.
 - **Controller service stubs**: Planner inspects descriptors that expose `typeProvidedByValue` metadata and provisions placeholder controller services when a processor requires one but the spec omits it. Stub selection favours implementations with minimal required configuration and fills their required properties with defaults or placeholders, leaving services disabled for operators to wire later.

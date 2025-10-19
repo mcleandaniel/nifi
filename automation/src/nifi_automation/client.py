@@ -166,6 +166,62 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         response = self._client.put(f"/processors/{processor_id}", json=body)
         response.raise_for_status()
 
+    def create_input_port(
+        self,
+        parent_id: str,
+        name: str,
+        position: tuple[float, float],
+        allow_remote: bool = False,
+        comments: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        component = {
+            "name": name,
+            "position": {"x": position[0], "y": position[1]},
+        }
+        if allow_remote:
+            component["allowRemoteAccess"] = True
+        if comments:
+            component["comments"] = comments
+        body = {"revision": {"version": 0}, "component": component}
+        response = self._client.post(f"/process-groups/{parent_id}/input-ports", json=body)
+        response.raise_for_status()
+        return response.json()["component"]
+
+    def create_output_port(
+        self,
+        parent_id: str,
+        name: str,
+        position: tuple[float, float],
+        allow_remote: bool = False,
+        comments: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        component = {
+            "name": name,
+            "position": {"x": position[0], "y": position[1]},
+        }
+        if allow_remote:
+            component["allowRemoteAccess"] = True
+        if comments:
+            component["comments"] = comments
+        body = {"revision": {"version": 0}, "component": component}
+        response = self._client.post(f"/process-groups/{parent_id}/output-ports", json=body)
+        response.raise_for_status()
+        return response.json()["component"]
+
+    def _update_port_state(self, port_id: str, port_type: str, state: str) -> None:
+        path = "/input-ports" if port_type == "INPUT_PORT" else "/output-ports"
+        entity = self._client.get(f"{path}/{port_id}").json()
+        revision = entity.get("revision", {})
+        body = {"revision": revision, "component": {"id": port_id, "state": state}}
+        self._client.put(f"{path}/{port_id}", json=body).raise_for_status()
+
+    def delete_port(self, port_id: str, port_type: str) -> None:
+        path = "/input-ports" if port_type == "INPUT_PORT" else "/output-ports"
+        entity = self._client.get(f"{path}/{port_id}").json()
+        revision = entity.get("revision", {})
+        params = {"version": revision.get("version", 0), "clientId": "nifi-automation"}
+        self._client.delete(f"{path}/{port_id}", params=params).raise_for_status()
+
     def create_connection(
         self,
         parent_id: str,
@@ -173,33 +229,43 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         source_id: str,
         destination_id: str,
         relationships: List[str],
+        source_type: str = "PROCESSOR",
+        destination_type: str = "PROCESSOR",
+        *,
+        source_group_id: Optional[str] = None,
+        destination_group_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        body = {
-            "revision": {"version": 0},
-            "component": {
-                "name": name,
-                "source": {
-                    "id": source_id,
-                    "type": "PROCESSOR",
-                    "groupId": parent_id,
-                },
-                "destination": {
-                    "id": destination_id,
-                    "type": "PROCESSOR",
-                    "groupId": parent_id,
-                },
-                "selectedRelationships": relationships,
-                "flowFileExpiration": "0 sec",
-                "backPressureObjectThreshold": 10000,
-                "backPressureDataSizeThreshold": "1 GB",
-                "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
-                "loadBalancePartitionAttribute": "",
-                "loadBalanceCompression": "DO_NOT_COMPRESS",
-                "bendPoints": [],
+        component = {
+            "name": name,
+            "source": {
+                "id": source_id,
+                "type": source_type,
+                "groupId": source_group_id or parent_id,
             },
+            "destination": {
+                "id": destination_id,
+                "type": destination_type,
+                "groupId": destination_group_id or parent_id,
+            },
+            "flowFileExpiration": "0 sec",
+            "backPressureObjectThreshold": 10000,
+            "backPressureDataSizeThreshold": "1 GB",
+            "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+            "loadBalancePartitionAttribute": "",
+            "loadBalanceCompression": "DO_NOT_COMPRESS",
+            "bendPoints": [],
         }
+        if relationships:
+            component["selectedRelationships"] = relationships
+        body = {"revision": {"version": 0}, "component": component}
         response = self._client.post(f"/process-groups/{parent_id}/connections", json=body)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:  # type: ignore[name-defined]
+            detail = exc.response.text if exc.response is not None else ""
+            raise httpx.HTTPStatusError(
+                f"{exc}\nResponse body: {detail}", request=exc.request, response=exc.response
+            ) from exc
         return response.json()["component"]
 
     def _resolve_controller_service_bundle(

@@ -11,7 +11,7 @@ from typing import Iterable
 from nifi_automation.auth import obtain_access_token
 from nifi_automation.client import NiFiClient
 from nifi_automation.config import build_settings
-from nifi_automation.diagnostics import collect_invalid_processors
+from nifi_automation.diagnostics import collect_invalid_processors, collect_invalid_ports
 
 
 def main(argv: Iterable[str] | None = None) -> int:
@@ -23,32 +23,48 @@ def main(argv: Iterable[str] | None = None) -> int:
     token = obtain_access_token(settings)
 
     with NiFiClient(settings, token) as client:
-        invalid = collect_invalid_processors(client)
+        invalid_processors = collect_invalid_processors(client)
+        invalid_ports = collect_invalid_ports(client)
+
+    result = {
+        "processors": invalid_processors,
+        "ports": invalid_ports,
+    }
 
     if args.json:
-        json.dump(invalid, sys.stdout, indent=2)
+        json.dump(result, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
-        if not invalid:
-            print("No invalid processors detected.")
-        else:
-            for entry in invalid:
-                print(f"Processor: {entry['name']} ({entry['id']})")
-                print(f"  Type : {entry['type']}")
-                print(f"  Path : {entry['path']}")
-                print(f"  Status: {entry['validationStatus']}")
-                if entry["validationErrors"]:
-                    print("  Validation Errors:")
-                    for err in entry["validationErrors"]:
-                        print(f"    - {err}")
-                if entry["bulletins"]:
-                    print("  Bulletins:")
-                    for bulletin in entry["bulletins"]:
-                        msg = bulletin.get("bulletin", {}).get("message")
-                        print(f"    - {msg}")
-                print()
+        if not invalid_processors and not invalid_ports:
+            print("No invalid processors or ports detected.")
+        if invalid_processors:
+            print("Invalid processors:")
+            for entry in invalid_processors:
+                print(f"- {entry['name']} ({entry['id']})")
+                print(f"    Type : {entry['type']}")
+                print(f"    Path : {entry['path']}")
+                print(f"    Status: {entry['validationStatus']}")
+                for err in entry.get("validationErrors") or []:
+                    print(f"      Validation Error: {err}")
+                for bulletin in entry.get("bulletins") or []:
+                    msg = bulletin.get("bulletin", {}).get("message")
+                    if msg:
+                        print(f"      Bulletin: {msg}")
+        if invalid_ports:
+            print("Invalid ports:")
+            for entry in invalid_ports:
+                print(f"- {entry['name']} ({entry['id']})")
+                print(f"    Type : {entry['type']}")
+                print(f"    Path : {entry['path']}")
+                print(f"    Status: {entry['validationStatus']}")
+                for err in entry.get("validationErrors") or []:
+                    print(f"      Validation Error: {err}")
+                for bulletin in entry.get("bulletins") or []:
+                    msg = bulletin.get("bulletin", {}).get("message")
+                    if msg:
+                        print(f"      Bulletin: {msg}")
 
-    return 0
+    return 0 if not invalid_processors and not invalid_ports else 1
 
 
 if __name__ == "__main__":

@@ -15,6 +15,11 @@ This process assumes **no existing controller services** are deployed. It should
 * **Minimal state**: no reconciliation, UUID lookups, or disabling logic—everything is created anew.
 * **Automation owns the purge**: `ensure_root_controller_services` aborts immediately if any controller service already exists, forcing callers to purge first.
 
+## Explicit Non-Goals
+- **No reconcile/diff mode**: the automation never attempts to detect or merge with existing services. Any reconciliation logic must be handled outside this workflow.
+- **No scoped controller services**: services are provisioned only at the NiFi root; child process groups will not receive scoped controller services from this pipeline.
+- **No `controller-services-validate` dry-run CLI**: validation is coupled with actual provisioning. Separate “validate without mutate” tooling remains out of scope.
+
 ## Inputs
 
 * `automation/manifest/controller-services.json`

@@ -105,12 +105,6 @@ def purge_process_group(client: NiFiClient, pg_id: str, *, delete_group: bool = 
     group_flow = response.json().get("processGroupFlow") or {}
     flow = group_flow.get("flow") or {}
 
-    for child in flow.get("processGroups") or []:
-        child_id = child.get("component", {}).get("id")
-        if not child_id:
-            continue
-        purge_process_group(client, child_id, delete_group=True)
-
     for processor in flow.get("processors") or []:
         proc_id = processor.get("component", {}).get("id")
         if proc_id:
@@ -133,10 +127,30 @@ def purge_process_group(client: NiFiClient, pg_id: str, *, delete_group: bool = 
         if service_id:
             _disable_and_delete_service(client, service_id)
 
+    for port in flow.get("inputPorts") or []:
+        component = port.get("component", {})
+        port_id = component.get("id")
+        if port_id:
+            client._update_port_state(port_id, "INPUT_PORT", "DISABLED")
+            client.delete_port(port_id, "INPUT_PORT")
+
+    for port in flow.get("outputPorts") or []:
+        component = port.get("component", {})
+        port_id = component.get("id")
+        if port_id:
+            client._update_port_state(port_id, "OUTPUT_PORT", "DISABLED")
+            client.delete_port(port_id, "OUTPUT_PORT")
+
     for processor in flow.get("processors") or []:
         proc_id = processor.get("component", {}).get("id")
         if proc_id:
             _delete_processor(client, proc_id)
+
+    for child in flow.get("processGroups") or []:
+        child_id = child.get("component", {}).get("id")
+        if not child_id:
+            continue
+        purge_process_group(client, child_id, delete_group=True)
 
     if delete_group and pg_id != "root":
         client.delete_process_group_recursive(pg_id)

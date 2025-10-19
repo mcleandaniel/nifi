@@ -14,7 +14,7 @@ from nifi_automation.controller_registry import (
     clear_manifest_service_ids,
     ensure_root_controller_services,
 )
-from nifi_automation.diagnostics import collect_invalid_processors
+from nifi_automation.diagnostics import collect_invalid_ports, collect_invalid_processors
 from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec
 
 
@@ -101,6 +101,27 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
         sub_flow = fetched["processGroupFlow"]["flow"]
         if child_spec.processors:
             assert sub_flow.get("processors"), f"{child_spec.name} has no processors"
+        if child_spec.input_ports:
+            port_names = {
+                port.get("component", {}).get("name")
+                for port in sub_flow.get("inputPorts") or []
+            }
+            expected = {port.name for port in child_spec.input_ports}
+            assert expected.issubset(port_names), f"Missing input ports in {child_spec.name}: {expected - port_names}"
+        if child_spec.output_ports:
+            port_names = {
+                port.get("component", {}).get("name")
+                for port in sub_flow.get("outputPorts") or []
+            }
+            expected = {port.name for port in child_spec.output_ports}
+            assert expected.issubset(port_names), f"Missing output ports in {child_spec.name}: {expected - port_names}"
+        if child_spec.child_groups:
+            nested_names = {
+                pg["component"]["name"]
+                for pg in sub_flow.get("processGroups") or []
+            }
+            expected_nested = {nested.name for nested in child_spec.child_groups}
+            assert expected_nested.issubset(nested_names), f"Missing nested groups in {child_spec.name}: {expected_nested - nested_names}"
 
     # Validate controller services exist per manifest
     manifested_services = set(service_map.keys())
@@ -162,4 +183,6 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
         assert "Schema Access Strategy" not in props
 
     invalid_procs = collect_invalid_processors(nifi_client)
+    invalid_ports = collect_invalid_ports(nifi_client)
     assert not invalid_procs, f"Invalid processors detected: {invalid_procs}"
+    assert not invalid_ports, f"Invalid ports detected: {invalid_ports}"

@@ -1,0 +1,78 @@
+{
+  "version": "1",
+  "generated_at": "2025-10-19T07:19:09Z",
+  "repo_root": ".",
+  "scope": "common",
+  "topics": [
+    {
+      "id": "shared-authentication-and-authorization",
+      "title": "Shared Authentication and Authorization Model",
+      "summary": "Documents the unified login, token, and role model used across services and UIs.",
+      "category": "security",
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/", "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/", "minifi/minifi-nar-bundles/minifi-framework-bundle/minifi-framework/minifi-resources/src/main/resources/conf/"],
+      "priority": "high",
+      "tags": ["authn", "authz", "sso"],
+      "research_request": "Explain the authentication architecture common to all modules, noting where services and UIs differ."
+    },
+    {
+      "id": "shared-build-and-ci",
+      "title": "Common Build and CI/CD Processes",
+      "summary": "How services, tools, and applications share build infrastructure and pipelines.",
+      "category": "development",
+      "recommended_sources": [".github/workflows/", "nifi-bom/", "pom.xml"],
+      "priority": "medium",
+      "tags": ["build", "ci", "pipeline"],
+      "research_request": "Document the continuous integration and release process shared across modules."
+    },
+    {
+      "id": "shared-observability",
+      "title": "Unified Observability and Metrics",
+      "summary": "Cross-cutting logging, tracing, and metrics framework used across services and UIs.",
+      "category": "operations",
+      "recommended_sources": ["nifi-commons/nifi-metrics/", "nifi-commons/nifi-per-process-group-logging/", "minifi/minifi-commons/minifi-flow-status-report/"],
+      "priority": "medium",
+      "tags": ["metrics", "logging", "tracing"],
+      "research_request": "Describe the common observability stack used across components."
+    },
+    {
+      "id": "common-extension-distribution",
+      "title": "Extension Packaging and Distribution",
+      "summary": "Explain how extension archives are built and shared across NiFi, Registry, and MiNiFi deployments.",
+      "category": "extensibility",
+      "recommended_sources": ["nifi-extension-bundles/", "minifi/minifi-nar-bundles/", "nifi-toolkit/nifi-toolkit-assembly/src/main/resources/conf/"] ,
+      "priority": "medium",
+      "tags": ["nar", "extensions", "packaging"],
+      "research_request": "Summarize packaging conventions, compatibility requirements, and distribution workflows for shared extensions."
+    },
+    {
+      "id": "common-configuration-baselines",
+      "title": "Shared Configuration Baselines",
+      "summary": "Capture configuration conventions and templates applied across services, tools, and automation.",
+      "category": "operations",
+      "recommended_sources": ["nifi-docs/src/main/asciidoc/administration-guide.adoc", "docs/components/", "minifi/minifi-docs/src/main/markdown/System_Admin_Guide.md"],
+      "priority": "medium",
+      "tags": ["configuration", "standards", "operations"],
+      "research_request": "Document configuration patterns reused across modules and how they stay synchronized."
+    },
+    {
+      "id": "common-rest-integration-patterns",
+      "title": "REST Integration Patterns",
+      "summary": "Describe shared REST contracts and client patterns leveraged by services, UI, and automation tooling.",
+      "category": "integration",
+      "recommended_sources": ["nifi-framework-api/", "nifi-registry/nifi-registry-core/nifi-registry-web-api/", "automation/src/nifi_automation/"],
+      "priority": "medium",
+      "tags": ["api", "rest", "automation"],
+      "research_request": "Explain shared DTOs, authentication flow, and error handling expectations across REST consumers."
+    },
+    {
+      "id": "common-certificate-management",
+      "title": "Certificate and TLS Management",
+      "summary": "Document shared approaches for certificate generation, rotation, and trust management.",
+      "category": "security",
+      "recommended_sources": ["nifi-toolkit/nifi-toolkit-assembly/src/main/resources/conf/", "nifi-commons/nifi-security-cert-builder/", "nifi-commons/nifi-security-utils-api/"],
+      "priority": "medium",
+      "tags": ["tls", "certificates", "security"],
+      "research_request": "Describe certificate lifecycle tooling, shared libraries, and integration with runtime configuration."
+    }
+  ]
+}

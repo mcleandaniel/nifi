@@ -1,324 +1,158 @@
 {
   "version": "1",
-  "generated_at": "2025-10-18T16:00:00Z",
+  "generated_at": "2025-10-19T07:19:09Z",
   "repo_root": ".",
   "scope": "service",
-  "service": {
-    "id": "service-main",
-    "name": "NiFi Core Runtime",
-    "kind": "service",
-    "entrypoints": [
-      "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/bin/nifi.sh",
-      "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/bootstrap.conf",
-      "nifi-assembly/src/main/assembly/core.xml"
-    ],
-    "ports": ["8080", "8443"],
-    "artifacts": [
-      "nifi-assembly/src/main/assembly/",
-      "nifi-docker/Dockerfile",
-      "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/bin/"
-    ]
-  },
   "topics": [
     {
-      "id": "service-architecture-overview",
-      "title": "Service Architecture Overview",
-      "summary": "Explain the structure of the NiFi runtime service, including bootstrap, FlowFile engine, and controller services.",
+      "id": "service-main-runtime-package",
+      "title": "NiFi Server Packaging and Layout",
+      "summary": "Describe how the server distribution is assembled, including directory layout, NAR loading, and bundled resources.",
+      "category": "deployment",
+      "recommended_sources": ["nifi-assembly/", "nifi-framework-bundle/nifi-server-nar/"],
+      "priority": "high",
+      "tags": ["packaging", "distribution", "runtime"],
+      "research_request": "Map the installed filesystem structure, key directories, and how assemblies pull in framework NARs."
+    },
+    {
+      "id": "service-main-configuration-baseline",
+      "title": "Core Configuration Baseline",
+      "summary": "Explain the foundational configuration files that govern ports, repositories, properties, and access policies for the NiFi server.",
+      "category": "operations",
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/"],
+      "priority": "high",
+      "tags": ["configuration", "nifi.properties", "operations"],
+      "research_request": "Detail key properties in nifi.properties, bootstrap.conf, and supporting XML descriptors and how they interact."
+    },
+    {
+      "id": "service-main-bootstrap-lifecycle",
+      "title": "Bootstrap and Lifecycle Scripts",
+      "summary": "Document how bootstrap services start, monitor, and restart NiFi, including script behaviors on different platforms.",
+      "category": "operations",
+      "recommended_sources": ["nifi-bootstrap/src/", "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/bin/"],
+      "priority": "high",
+      "tags": ["bootstrap", "lifecycle", "operations"],
+      "research_request": "Describe bootstrap service responsibilities, configurable options, and integration with service managers."
+    },
+    {
+      "id": "service-main-cluster-coordination",
+      "title": "Cluster Coordination and Protocol",
+      "summary": "Explain how NiFi nodes coordinate in clustered deployments, including election, communication, and fault handling.",
       "category": "architecture",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-runtime/",
-        "nifi-framework-bundle/nifi-framework/nifi-framework-core/",
-        "docs/design-log.md"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-framework-cluster/", "nifi-framework-bundle/nifi-framework/nifi-framework-cluster-protocol/"],
       "priority": "high",
-      "tags": ["architecture", "runtime", "service"],
-      "research_request": "Describe the architecture of the NiFi runtime service, covering bootstrap flow and main subsystems."
+      "tags": ["cluster", "coordination", "protocol"],
+      "research_request": "Clarify heartbeat flows, consensus responsibilities, and configuration required for clustered operation."
     },
     {
-      "id": "bootstrap-and-startup",
-      "title": "Bootstrap and Startup",
-      "summary": "Detail the bootstrap sequence, scripts, and JVM configuration applied during service startup.",
-      "category": "deployment",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/bin/nifi.sh",
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/bootstrap.conf",
-        "nifi-bootstrap/src/main/java/"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["bootstrap", "startup", "deployment"],
-      "research_request": "Explain the NiFi bootstrap process including scripts, JVM options, and lifecycle controls."
-    },
-    {
-      "id": "configuration-management",
-      "title": "Configuration Management",
-      "summary": "Document the core configuration files, precedence rules, and environment overrides supported by the service.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/",
-        "docs/design-log.md",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["configuration", "properties", "operations"],
-      "research_request": "Summarize NiFi's core configuration files, override hierarchy, and environment variable support."
-    },
-    {
-      "id": "networking-and-ports",
-      "title": "Networking and Ports",
-      "summary": "Explain HTTP/HTTPS listeners, site-to-site ports, and client connectivity requirements.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/",
-        "nifi-framework-bundle/nifi-framework/nifi-site-to-site/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
+      "id": "service-main-leader-election",
+      "title": "Leader Election and Node Roles",
+      "summary": "Summarize leader election mechanics, roles within a cluster, and fallback behavior during node turnover.",
+      "category": "architecture",
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-framework-leader-election-shared/", "nifi-framework-bundle/nifi-framework/nifi-headless-server/"],
       "priority": "medium",
-      "tags": ["networking", "ports", "connectivity"],
-      "research_request": "Detail NiFi's networking configuration, including web ports, site-to-site, and client access."
+      "tags": ["leader-election", "cluster", "roles"],
+      "research_request": "Detail election algorithms, failover timing, and responsibilities of primary versus secondary nodes."
     },
     {
-      "id": "cluster-operations",
-      "title": "Cluster Operations",
-      "summary": "Describe node coordination, leader election, and rolling operations for clustered deployments.",
+      "id": "service-main-state-management",
+      "title": "State and History Management",
+      "summary": "Describe how runtime state, status history, and controller metadata are persisted and retrieved.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster/",
-        "nifi-framework-bundle/nifi-framework/nifi-framework-leader-election-shared/",
-        "nifi-system-tests/nifi-system-test-suite/"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["cluster", "ha", "operations"],
-      "research_request": "Explain how to operate NiFi clusters, including leader election and rolling restart guidance."
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-framework-core/", "nifi-framework-bundle/nifi-framework/nifi-framework-status-history-shared/"],
+      "priority": "medium",
+      "tags": ["state", "history", "persistence"],
+      "research_request": "Explain local versus cluster state stores, backup strategies, and configuration for state providers."
     },
     {
-      "id": "repository-management",
-      "title": "Repository Management",
-      "summary": "Cover FlowFile, content, and provenance repositories plus tuning for throughput and durability.",
+      "id": "service-main-site-to-site-gateway",
+      "title": "Site-to-Site Gateway Configuration",
+      "summary": "Detail setup and tuning for Site-to-Site endpoints managed by the NiFi server.",
+      "category": "integration",
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-site-to-site/", "nifi-commons/nifi-site-to-site-client/"],
+      "priority": "medium",
+      "tags": ["site-to-site", "gateway", "integration"],
+      "research_request": "Outline port configuration, security controls, and performance considerations for Site-to-Site listeners."
+    },
+    {
+      "id": "service-main-repository-tuning",
+      "title": "Repository Tuning and Backing Stores",
+      "summary": "Explain how to size, configure, and optimize content, FlowFile, and provenance repositories for the main service.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-flowfile-repo-serialization/",
-        "nifi-framework-bundle/nifi-framework/nifi-provenance-repository-bundle/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework-extensions/nifi-provenance-repository-bundle/", "nifi-framework-bundle/nifi-framework/nifi-repository-models/"],
       "priority": "high",
-      "tags": ["repositories", "flowfile", "tuning"],
-      "research_request": "Document repository configuration, storage tuning, and maintenance expectations."
+      "tags": ["repository", "tuning", "storage"],
+      "research_request": "Provide tuning recommendations, SSD versus disk considerations, and recovery strategies for repositories."
     },
     {
-      "id": "security-hardening",
-      "title": "Security Hardening",
-      "summary": "Summarize server hardening guidelines, network segmentation, and baseline security settings.",
+      "id": "service-main-extension-loading",
+      "title": "Extension Loading Pipeline",
+      "summary": "Describe how the server locates, validates, and loads NAR-based extensions at startup and runtime.",
+      "category": "extensibility",
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-nar-utils/", "nifi-framework-bundle/nifi-framework/nifi-framework-nar-loading-utils/"],
+      "priority": "medium",
+      "tags": ["nar", "extensions", "loading"],
+      "research_request": "Detail classloader isolation, dependency resolution, and diagnostics for failed NAR loads."
+    },
+    {
+      "id": "service-main-security-configuration",
+      "title": "Authorization and Identity Providers",
+      "summary": "Explain configuration of authorizers, identity providers, and certificate trust for the NiFi server.",
       "category": "security",
-      "recommended_sources": [
-        "SECURITY.md",
-        "nifi-framework-bundle/nifi-framework/nifi-kerberos-iaa-providers-bundle/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/authorizers.xml", "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/login-identity-providers.xml"],
       "priority": "high",
-      "tags": ["security", "hardening", "baseline"],
-      "research_request": "Provide security hardening recommendations for running the NiFi core service."
+      "tags": ["security", "authorization", "identity"],
+      "research_request": "Document policy models, identity mapping, and best practices for securing the NiFi server."
     },
     {
-      "id": "tls-setup",
-      "title": "TLS Setup",
-      "summary": "Detail TLS configuration, keystore/truststore handling, and certificate rotation procedures.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-docker/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["tls", "certificates", "security"],
-      "research_request": "Document TLS configuration steps for the NiFi service including certificate management."
-    },
-    {
-      "id": "authentication-and-single-user",
-      "title": "Authentication and Single User",
-      "summary": "Explain supported authentication modes and the single-user bootstrap option for local deployments.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-ldap-iaa-providers-bundle/",
-        "nifi-framework-bundle/nifi-framework/nifi-framework-authorization/",
-        "docs/design-log.md"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["authentication", "single-user", "security"],
-      "research_request": "Describe NiFi authentication modes including single-user, LDAP, and SSO integrations."
-    },
-    {
-      "id": "authorization-policies",
-      "title": "Authorization Policies",
-      "summary": "Detail policy configuration, authorizers, and fine-grained access control for the service.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-authorizer/",
-        "nifi-framework-bundle/nifi-framework/nifi-file-authorizer/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["authorization", "policies", "security"],
-      "research_request": "Explain NiFi authorization policies and how to configure authorizers for least privilege."
-    },
-    {
-      "id": "logging-and-observability",
-      "title": "Logging and Observability",
-      "summary": "Describe log configuration, metrics endpoints, and integration with monitoring systems.",
+      "id": "service-main-parameter-contexts",
+      "title": "Parameter Context Operations",
+      "summary": "Detail how parameter contexts are defined, synchronized, and consumed within the main service runtime.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-docker/"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-commons/nifi-parameter/", "nifi-framework-bundle/nifi-framework/nifi-framework-core/"],
       "priority": "medium",
-      "tags": ["logging", "metrics", "observability"],
-      "research_request": "Document NiFi logging configuration and available observability hooks for operators."
+      "tags": ["parameters", "contexts", "runtime"],
+      "research_request": "Describe lifecycle management, permissions, and rollback handling for parameter contexts."
     },
     {
-      "id": "scaling-and-ha",
-      "title": "Scaling and High Availability",
-      "summary": "Explain horizontal scaling approaches, load balancing, and HA considerations for NiFi.",
+      "id": "service-main-rest-api-surface",
+      "title": "REST API Implementation Details",
+      "summary": "Provide insight into the server-side implementation of NiFi's REST API and DTO serialization.",
+      "category": "integration",
+      "recommended_sources": ["nifi-framework-bundle/nifi-framework/nifi-web/nifi-web-api/", "nifi-framework-bundle/nifi-framework/nifi-client-dto/"],
+      "priority": "medium",
+      "tags": ["rest", "api", "implementation"],
+      "research_request": "Highlight resource controllers, DTO mappers, and version negotiation in the web API."
+    },
+    {
+      "id": "service-main-observability-per-process",
+      "title": "Per-Process-Group Observability",
+      "summary": "Explain logging and metrics options that isolate visibility at the process-group level for troubleshooting.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework/nifi-framework-cluster/",
-        "docs/design-log.md",
-        "nifi-system-tests/nifi-system-test-suite/"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-commons/nifi-per-process-group-logging/", "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/logback.xml"],
       "priority": "medium",
-      "tags": ["scaling", "ha", "operations"],
-      "research_request": "Provide guidance on scaling NiFi deployments and maintaining high availability."
+      "tags": ["observability", "logging", "metrics"],
+      "research_request": "Document configuration steps for scoped logging, metric exports, and best practices for monitoring flows."
     },
     {
-      "id": "upgrade-operations",
-      "title": "Upgrade Operations",
-      "summary": "Cover steps for upgrading the service, including rolling upgrades and compatibility checks.",
+      "id": "service-main-upgrade-strategy",
+      "title": "Upgrade and Migration Strategy",
+      "summary": "Detail recommended upgrade sequences, compatibility guarantees, and rollback planning for NiFi clusters.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-manifest/",
-        "nifi-assembly/src/main/assembly/"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-docs/src/main/asciidoc/administration-guide.adoc", "nifi-assembly/README.md"],
       "priority": "medium",
-      "tags": ["upgrade", "compatibility", "operations"],
-      "research_request": "Describe the upgrade process for NiFi clusters and standalone deployments."
+      "tags": ["upgrade", "migration", "operations"],
+      "research_request": "Explain blue-green or rolling upgrade patterns and pre/post upgrade validation steps."
     },
     {
-      "id": "backup-and-restore",
-      "title": "Backup and Restore",
-      "summary": "Explain repository backup strategies, snapshotting, and recovery runbooks for the runtime.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
-        "docs/design-log.md",
-        "nifi-framework-bundle/nifi-framework/nifi-flowfile-repo-serialization/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["backup", "restore", "operations"],
-      "research_request": "Provide procedures for backing up and restoring NiFi repositories and configs."
-    },
-    {
-      "id": "docker-deployment",
-      "title": "Docker Deployment",
-      "summary": "Summarize Docker images, environment variables, and compose scenarios for running NiFi.",
-      "category": "deployment",
-      "recommended_sources": [
-        "nifi-docker/",
-        "nifi-docker/dockerhub/",
-        "docs/design-log.md"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["docker", "containers", "deployment"],
-      "research_request": "Explain how to deploy NiFi using Docker, including configuration and orchestration options."
-    },
-    {
-      "id": "kubernetes-deployment",
-      "title": "Kubernetes Deployment",
-      "summary": "Describe Kubernetes resources, manifests, and Helm integrations for the NiFi service.",
-      "category": "deployment",
-      "recommended_sources": [
-        "nifi-framework-bundle/nifi-framework-extensions/nifi-framework-kubernetes-bundle/",
-        "nifi-docker/",
-        "docs/design-log.md"
-      ],
-      "dependencies": [],
+      "id": "service-main-python-runtime",
+      "title": "Python Processor Runtime Support",
+      "summary": "Describe how the main service hosts Python-based processors and manages their execution environment.",
+      "category": "extensibility",
+      "recommended_sources": ["nifi-extension-bundles/nifi-py4j-extension-bundle/", "nifi-framework-bundle/nifi-framework/nifi-runtime/"],
       "priority": "low",
-      "tags": ["kubernetes", "deployment", "cloud"],
-      "research_request": "Document Kubernetes deployment guidance and provided manifests for NiFi."
-    },
-    {
-      "id": "packaging-and-artifacts",
-      "title": "Packaging and Artifacts",
-      "summary": "Detail the runtime artifacts produced for the service, including binary bundles and manifests.",
-      "category": "deployment",
-      "recommended_sources": [
-        "nifi-assembly/src/main/assembly/",
-        "nifi-manifest/",
-        "README.md"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["packaging", "artifacts", "deployment"],
-      "research_request": "Describe the packaged artifacts for the NiFi service and how they are assembled."
-    },
-    {
-      "id": "maintenance-operations",
-      "title": "Maintenance Operations",
-      "summary": "Cover routine maintenance tasks such as repository cleanup, log rotation, and patching.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
-        "docs/design-log.md",
-        "nifi-framework-bundle/nifi-framework/nifi-resources/src/main/resources/conf/"
-      ],
-      "dependencies": [],
-      "priority": "low",
-      "tags": ["maintenance", "operations", "runbook"],
-      "research_request": "Summarize routine maintenance procedures for NiFi operators."
-    },
-    {
-      "id": "troubleshooting-guide",
-      "title": "Troubleshooting Guide",
-      "summary": "Provide approaches for diagnosing common runtime issues, with log references and remediation steps.",
-      "category": "operations",
-      "recommended_sources": [
-        "docs/design-log.md",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-system-tests/nifi-system-test-suite/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["troubleshooting", "diagnostics", "operations"],
-      "research_request": "Create a troubleshooting guide covering common errors and diagnostic techniques for NiFi."
-    },
-    {
-      "id": "extension-management",
-      "title": "Extension Management",
-      "summary": "Explain how to install, update, and validate NAR extensions within the running service.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-extension-bundles/",
-        "nifi-assembly/src/main/assembly/",
-        "nifi-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["extensions", "nar", "runtime"],
-      "research_request": "Document operational workflows for managing NiFi extensions and NAR files in production."
+      "tags": ["python", "processors", "runtime"],
+      "research_request": "Clarify deployment steps, resource constraints, and monitoring guidance for Python processors within the server."
     }
   ]
 }

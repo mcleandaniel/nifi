@@ -1,0 +1,74 @@
+process_group:
+  name: NiFi Flow
+  position:
+  - 0
+  - 0
+  process_groups:
+  - name: NestedPortsWorkflow
+    position:
+    - 0
+    - 0
+    processors:
+    - id: nested-source
+      name: Nested Source
+      type: org.apache.nifi.processors.standard.GenerateFlowFile
+      position:
+      - 0
+      - 0
+      properties:
+        Batch Size: '1'
+        Data Format: Text
+        Custom Text: nested payload
+    - id: nested-result-log
+      name: Nested Result Logger
+      type: org.apache.nifi.processors.standard.LogAttribute
+      position:
+      - 800
+      - 0
+    process_groups:
+    - name: NestedPortsSubflow
+      position:
+      - 400
+      - 0
+      input_ports:
+      - id: nested-sub-in
+        name: Nested Sub In
+        position:
+        - 0
+        - -100
+      output_ports:
+      - id: nested-sub-out
+        name: Nested Sub Out
+        position:
+        - 300
+        - -100
+      processors:
+      - id: nested-sub-log
+        name: LogAttribute (Nested Sub)
+        type: org.apache.nifi.processors.standard.LogAttribute
+        position:
+        - 150
+        - 0
+      connections:
+      - name: Sub In to Log
+        source: nested-sub-in
+        destination: nested-sub-log
+        relationships: []
+      - name: Sub Log to Out
+        source: nested-sub-log
+        destination: nested-sub-out
+        relationships:
+        - success
+    connections:
+    - name: Source to Subflow
+      source: nested-source
+      destination: nested-sub-in
+      relationships:
+      - success
+    - name: Subflow to Result
+      source: nested-sub-out
+      destination: nested-result-log
+      relationships: []
+    auto_terminate:
+      nested-result-log:
+      - success

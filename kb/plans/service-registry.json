@@ -1,234 +1,128 @@
 {
   "version": "1",
-  "generated_at": "2025-10-18T00:00:00Z",
+  "generated_at": "2025-10-19T07:19:09Z",
   "repo_root": ".",
   "scope": "service",
-  "service": {
-    "id": "service-registry",
-    "name": "Apache NiFi Registry",
-    "kind": "service",
-    "entrypoints": [
-      "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/bin/nifi-registry.sh",
-      "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/bootstrap.conf",
-      "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/nifi-registry.properties"
-    ],
-    "ports": ["18080", "18443"],
-    "artifacts": [
-      "nifi-registry/nifi-registry-assembly/",
-      "nifi-registry/nifi-registry-assembly/target/nifi-registry-*-bin.zip",
-      "nifi-registry/nifi-registry-core/nifi-registry-docker/"
-    ]
-  },
   "topics": [
     {
-      "id": "registry-service-overview",
-      "title": "Service Overview",
-      "summary": "Describe NiFi Registry's role in managing versioned flows and how it integrates with NiFi clusters.",
-      "category": "architecture",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["registry", "versioning", "overview"],
-      "research_request": "Summarize NiFi Registry responsibilities, supported use cases, and integration points with NiFi."
-    },
-    {
-      "id": "registry-packaging-and-installation",
-      "title": "Packaging and Installation",
-      "summary": "Explain distribution layout, install steps, and filesystem structure for NiFi Registry operators.",
+      "id": "service-registry-runtime-package",
+      "title": "NiFi Registry Packaging and Layout",
+      "summary": "Describe how the registry distribution is assembled and how its directory structure supports runtime operation.",
       "category": "deployment",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-assembly/",
-        "nifi-registry/nifi-registry-assembly/pom.xml",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-registry/nifi-registry-assembly/", "nifi-registry/nifi-registry-assembly/src/"],
       "priority": "high",
-      "tags": ["installation", "distribution", "files"],
-      "research_request": "Document NiFi Registry installation workflow, directory structure, and prerequisites."
+      "tags": ["registry", "packaging", "deployment"],
+      "research_request": "Outline assembly descriptors, packaged modules, and how installers place registry artifacts."
     },
     {
-      "id": "registry-bootstrap-process",
-      "title": "Bootstrap Process",
-      "summary": "Detail bootstrap options, JVM tuning, and lifecycle commands for the registry service.",
+      "id": "service-registry-configuration-baseline",
+      "title": "Registry Configuration Baseline",
+      "summary": "Explain the configuration files that control ports, repositories, extensions, and identity for NiFi Registry.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/bootstrap.conf",
-        "nifi-registry/nifi-registry-core/nifi-registry-bootstrap/src/main/java/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["bootstrap", "jvm", "lifecycle"],
-      "research_request": "Explain NiFi Registry bootstrap configuration, JVM settings, and service management commands."
-    },
-    {
-      "id": "registry-configuration-basics",
-      "title": "Configuration Basics",
-      "summary": "Summarize key nifi-registry.properties settings including endpoints, storage, and security toggles.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/nifi-registry.properties",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/user-guide.adoc"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/"],
       "priority": "high",
-      "tags": ["configuration", "properties", "setup"],
-      "research_request": "Provide guidance on core NiFi Registry property settings, defaults, and when to adjust them."
+      "tags": ["configuration", "registry", "operations"],
+      "research_request": "Document key properties in nifi-registry.properties, providers.xml, and supporting bootstrap settings."
     },
     {
-      "id": "registry-authentication",
-      "title": "Authentication Options",
-      "summary": "Document supported identity providers, single-user mode, and external auth integrations for the registry.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/identity-providers.xml",
-        "nifi-registry/nifi-registry-core/nifi-registry-security-api/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["authentication", "identity", "login"],
-      "research_request": "Summarize NiFi Registry authentication providers, configuration steps, and integration considerations."
-    },
-    {
-      "id": "registry-authorization",
-      "title": "Authorization and Policies",
-      "summary": "Explain how access policies, buckets, and resource permissions are managed in NiFi Registry.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/authorizers.xml",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-web-api/src/main/java/"
-      ],
-      "dependencies": ["registry-authentication"],
-      "priority": "medium",
-      "tags": ["authorization", "policies", "buckets"],
-      "research_request": "Describe NiFi Registry authorization models, bucket policies, and administrative workflows."
-    },
-    {
-      "id": "registry-tls-and-proxy",
-      "title": "TLS and Proxy Configuration",
-      "summary": "Detail HTTPS enablement, proxy headers, and certificate management for the registry service.",
-      "category": "security",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/nifi-registry.properties",
-        "nifi-registry/nifi-registry-core/nifi-registry-docker/dockerhub/sh/secure.sh",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["tls", "proxy", "certificates"],
-      "research_request": "Provide TLS configuration steps, reverse proxy considerations, and certificate rotation guidance for NiFi Registry."
-    },
-    {
-      "id": "registry-bucket-management",
-      "title": "Bucket and Flow Management",
-      "summary": "Describe how buckets, flows, and versions are organized, promoted, and synchronized.",
+      "id": "service-registry-bootstrap-scripts",
+      "title": "Bootstrap Scripts and Service Control",
+      "summary": "Describe startup scripts, service wrappers, and monitoring hooks used to manage the registry process.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-docs/src/main/asciidoc/toolkit-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-web-api/src/main/java/"
-      ],
-      "dependencies": [],
-      "priority": "high",
-      "tags": ["buckets", "flows", "versioning"],
-      "research_request": "Explain how to organize buckets, manage flow versions, and integrate with NiFi CLI for deployments."
-    },
-    {
-      "id": "registry-storage-and-database",
-      "title": "Storage and Database Options",
-      "summary": "Outline repository backends, persistence configuration, and migration considerations for stored flows.",
-      "category": "architecture",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-provider-api/",
-        "nifi-registry/nifi-registry-core/nifi-registry-properties/src/main/java/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/bin/"],
       "priority": "medium",
-      "tags": ["storage", "database", "providers"],
-      "research_request": "Summarize NiFi Registry storage options, configuration, and migration strategies for repositories."
+      "tags": ["bootstrap", "service", "operations"],
+      "research_request": "Explain command usage across platforms and how administrators monitor or restart the registry."
     },
     {
-      "id": "registry-rest-api",
-      "title": "REST API and Clients",
-      "summary": "Provide an overview of registry REST endpoints, authentication patterns, and client tooling.",
-      "category": "architecture",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-web-api/src/main/java/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-toolkit/nifi-toolkit-cli/src/main/java/"
-      ],
-      "dependencies": [],
+      "id": "service-registry-rest-api",
+      "title": "Registry REST API Implementation",
+      "summary": "Summarize REST resources exposed by NiFi Registry, including DTO serialization and authorization checks.",
+      "category": "integration",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-web-api/"],
+      "priority": "high",
+      "tags": ["rest", "api", "registry"],
+      "research_request": "Map core endpoints, request lifecycles, and extension points for custom registry clients."
+    },
+    {
+      "id": "service-registry-flow-versioning",
+      "title": "Flow Versioning Workflows",
+      "summary": "Explain how flows, buckets, and version histories are modeled and managed within NiFi Registry.",
+      "category": "lifecycle",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/getting-started.adoc", "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/user-guide.adoc"],
+      "priority": "high",
+      "tags": ["versioning", "flows", "registry"],
+      "research_request": "Document bucket organization, version control APIs, and how NiFi clients promote flow versions."
+    },
+    {
+      "id": "service-registry-security",
+      "title": "Registry Security Configuration",
+      "summary": "Detail identity providers, authorizers, and TLS configuration options specific to NiFi Registry.",
+      "category": "security",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/authorizers.xml", "nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/identity-providers.xml"],
+      "priority": "high",
+      "tags": ["security", "authorization", "identity"],
+      "research_request": "Explain policy scope, user provisioning, and TLS setup for secure registry deployments."
+    },
+    {
+      "id": "service-registry-provider-extensions",
+      "title": "Provider Extension Architecture",
+      "summary": "Describe how provider APIs and extensions supply persistence, security, and external integrations for the registry.",
+      "category": "extensibility",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-provider-api/", "nifi-registry/nifi-registry-extensions/"] ,
+      "priority": "medium",
+      "tags": ["providers", "extensions", "architecture"],
+      "research_request": "Summarize built-in providers, extension packaging, and steps for writing custom providers."
+    },
+    {
+      "id": "service-registry-database-persistence",
+      "title": "Persistence and Storage Options",
+      "summary": "Explain how metadata is stored, what repositories are available, and how persistence is configured.",
+      "category": "operations",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-resources/src/main/resources/conf/providers.xml", "nifi-registry/nifi-registry-core/nifi-registry-utils/"] ,
+      "priority": "medium",
+      "tags": ["persistence", "storage", "providers"],
+      "research_request": "Detail repository implementations, database configuration, and migration considerations."
+    },
+    {
+      "id": "service-registry-ui-module",
+      "title": "Registry Web UI Architecture",
+      "summary": "Describe the front-end module shipped with the registry and how it integrates with backend APIs.",
+      "category": "application",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-web-ui/"],
+      "priority": "medium",
+      "tags": ["ui", "frontend", "registry"],
+      "research_request": "Outline build tooling, module structure, and extension points for customizing the registry UI."
+    },
+    {
+      "id": "service-registry-flow-diff",
+      "title": "Flow Diff and Comparison Engine",
+      "summary": "Explain how NiFi Registry computes and presents differences between flow versions.",
+      "category": "lifecycle",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-flow-diff/"],
+      "priority": "medium",
+      "tags": ["diff", "versioning", "registry"],
+      "research_request": "Describe diff algorithms, visualization components, and integration with NiFi UI."
+    },
+    {
+      "id": "service-registry-docker-distribution",
+      "title": "Container Distribution for Registry",
+      "summary": "Summarize Docker build pipelines, image configuration, and deployment guidance for NiFi Registry.",
+      "category": "deployment",
+      "recommended_sources": ["nifi-registry/nifi-registry-core/nifi-registry-docker/", "nifi-registry/nifi-registry-docker-maven/"] ,
       "priority": "low",
-      "tags": ["rest", "api", "clients"],
-      "research_request": "Outline NiFi Registry REST endpoints, authentication requirements, and client usage examples."
-    },
-    {
-      "id": "registry-ha-and-scaling",
-      "title": "High Availability and Scaling",
-      "summary": "Discuss deployment topologies, load balancing, and replica strategies for the registry.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-docker/dockerhub/Dockerfile",
-        "nifi-registry/nifi-registry-core/nifi-registry-jetty/src/main/java/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["ha", "scaling", "deployment"],
-      "research_request": "Provide guidance on deploying NiFi Registry for HA, load balancing traffic, and scaling repositories."
-    },
-    {
-      "id": "registry-backup-and-recovery",
-      "title": "Backup and Recovery",
-      "summary": "Explain backup targets, export options, and recovery workflows for NiFi Registry data.",
-      "category": "operations",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-registry/nifi-registry-core/nifi-registry-provider-api/",
-        "nifi-registry/nifi-registry-core/nifi-registry-data-model/src/main/java/"
-      ],
-      "dependencies": [],
-      "priority": "medium",
-      "tags": ["backup", "recovery", "resilience"],
-      "research_request": "Document NiFi Registry backup procedures, export formats, and recovery validation steps."
-    },
-    {
-      "id": "registry-docker-deployments",
-      "title": "Docker and Container Deployments",
-      "summary": "Describe using official registry containers, environment variables, and orchestration considerations.",
-      "category": "deployment",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-docker/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docker/dockerhub/Dockerfile",
-        "nifi-registry/nifi-registry-core/nifi-registry-docker/dockerhub/README.md"
-      ],
-      "dependencies": [],
-      "priority": "medium",
       "tags": ["docker", "containers", "deployment"],
-      "research_request": "Summarize NiFi Registry Docker image usage, configuration, and orchestration guidance."
+      "research_request": "Document Dockerfiles, environment configuration, and orchestration patterns for registry instances."
     },
     {
-      "id": "registry-upgrade-and-maintenance",
-      "title": "Upgrade and Maintenance",
-      "summary": "Provide upgrade workflow, compatibility considerations, and maintenance window planning for the registry.",
+      "id": "service-registry-toolkit-cli",
+      "title": "Registry Toolkit Utilities",
+      "summary": "Describe the toolkit modules that assist with registry administration and automation.",
       "category": "operations",
-      "recommended_sources": [
-        "nifi-registry/nifi-registry-core/nifi-registry-docs/src/main/asciidoc/administration-guide.adoc",
-        "nifi-registry/nifi-registry-assembly/",
-        "nifi-registry/nifi-registry-core/nifi-registry-docker/dockerhub/README.md"
-      ],
-      "dependencies": [],
+      "recommended_sources": ["nifi-registry/nifi-registry-toolkit/", "nifi-registry/nifi-registry-toolkit/nifi-registry-toolkit-assembly/"] ,
       "priority": "low",
-      "tags": ["upgrade", "maintenance", "planning"],
-      "research_request": "Describe NiFi Registry upgrade steps, compatibility checks, and maintenance best practices."
+      "tags": ["toolkit", "automation", "registry"],
+      "research_request": "Outline available CLI commands, configuration, and usage scenarios for the registry toolkit."
     }
   ]
 }
