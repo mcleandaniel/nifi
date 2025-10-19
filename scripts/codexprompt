@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Match, Optional
 
 FLAGS_REQUIRING_VALUE = {
     "model",
@@ -22,6 +24,9 @@ FLAGS_REQUIRING_VALUE = {
     "image",
     "i",
 }
+
+NAMED_PLACEHOLDER_RE = re.compile(r"\$[A-Z][A-Z0-9_]*")
+CURLY_PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 
 
 def codex_home() -> Path:
@@ -92,6 +97,73 @@ def load_template(path: Path) -> str:
     return strip_front_matter(raw)
 
 
+def split_prompt_arguments(tokens: list[str]) -> tuple[list[str], dict[str, str]]:
+    positional: list[str] = []
+    named: dict[str, str] = {}
+    for token in tokens:
+        if "=" in token and not token.startswith("="):
+            key, value = token.split("=", 1)
+            key = key.strip()
+            if key:
+                named[key] = value
+                continue
+        positional.append(token)
+    return positional, named
+
+
+def resolve_named_value(named: dict[str, str], key: str) -> Optional[str]:
+    if key in named:
+        return named[key]
+    lowered = key.lower()
+    if lowered in named:
+        return named[lowered]
+    uppered = key.upper()
+    if uppered in named:
+        return named[uppered]
+    return None
+
+
+def substitute_named_placeholders(template: str, named: dict[str, str]) -> str:
+    missing: set[str] = set()
+
+    def replacer(match: Match[str]) -> str:
+        start = match.start()
+        if start > 0 and template[start - 1] == "$":
+            return match.group(0)
+        key = match.group(0)[1:]
+        if key == "ARGUMENTS":
+            return match.group(0)
+        value = resolve_named_value(named, key)
+        if value is None:
+            missing.add(key)
+            return match.group(0)
+        return value
+
+    replaced = NAMED_PLACEHOLDER_RE.sub(replacer, template)
+    if missing:
+        keys = ", ".join(sorted(missing))
+        raise ValueError(f"Missing named arguments: {keys}")
+    return replaced
+
+
+def substitute_curly_placeholders(template: str, named: dict[str, str]) -> str:
+    missing: set[str] = set()
+
+    def replacer(match: Match[str]) -> str:
+        key = match.group(1)
+        value = resolve_named_value(named, key)
+        if value is None:
+            missing.add(key)
+            return match.group(0)
+        return value
+
+    replaced = CURLY_PLACEHOLDER_RE.sub(replacer, template)
+    if missing:
+        keys = ", ".join(sorted(missing))
+        raise ValueError(f"Missing named arguments: {keys}")
+    return replaced
+
+
 def print_help() -> None:
     help_text = """Render a Codex prompt file, expand $1…$9 placeholders, then run `codex exec`.
 
@@ -105,7 +177,7 @@ Options:
 
 Arguments:
   TEMPLATE            Prompt name (e.g. weather-town) or path to a .md file.
-  prompt-args...      Positional values that substitute $1, $2 … inside TEMPLATE.
+  prompt-args...      Positional values for $1, $2… or key=value pairs for $NAME / {{name}}.
 
 Codex flags:
   Any flags placed before TEMPLATE (e.g. --search, --model gpt-5, -c foo=bar,
@@ -119,12 +191,15 @@ Examples:
   codexprompt --search weather-town "Brighton"
     → runs `codex --search exec "What is the current weather in Brighton, United Kingdom?"`
 
+  codexprompt research-assistant research_request="NiFi CLI back-referencing"
+    → fills {{research_request}} / $RESEARCH_REQUEST and runs `codex exec …`.
+
   codexprompt --print-only weather-town "Brighton"
     → prints the rendered prompt without invoking codex.
 
   codexprompt --cd . -- research-assistant "$(cat draft.md)" > output.md
     → forwards `--cd .` to codex, renders the `research-assistant` template with
-      the file contents substituted as $1, and writes the final text to output.md.
+      the file contents substituted, and writes the final text to output.md.
 """
     print(help_text)
 
@@ -189,8 +264,17 @@ def main() -> int:
     template_path = resolve_template_path(template_arg)
     body = load_template(template_path)
 
+    positional_args, named_args = split_prompt_arguments(prompt_args)
+
     try:
-        rendered = substitute_positional_args(body, prompt_args)
+        rendered = substitute_named_placeholders(body, named_args)
+        rendered = substitute_curly_placeholders(rendered, named_args)
+    except ValueError as exc:
+        print(f"codexprompt: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        rendered = substitute_positional_args(rendered, positional_args)
     except ValueError as exc:
         print(f"codexprompt: {exc}", file=sys.stderr)
         return 1

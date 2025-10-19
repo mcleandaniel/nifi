@@ -15,7 +15,7 @@ process_group:
       position:
       - 0
       - 0
-      scheduling_period: '1 min'
+      scheduling_period: 1 min
       properties:
         Batch Size: '1'
     - id: trivial-log
@@ -44,7 +44,7 @@ process_group:
       position:
       - 0
       - 0
-      scheduling_period: '1 min'
+      scheduling_period: 1 min
       properties:
         record-writer: json-writer
         number-of-records: '1'
@@ -123,7 +123,7 @@ process_group:
       position:
       - 0
       - 0
-      scheduling_period: '1 min'
+      scheduling_period: 1 min
       properties:
         Batch Size: '1'
         Data Format: Text
@@ -172,8 +172,8 @@ process_group:
       - success
   - name: ComplexWorkflow
     position:
-    - 2400
     - 0
+    - 600
     processors:
     - id: complex-generate
       name: GenerateRecord (Complex)
@@ -181,7 +181,7 @@ process_group:
       position:
       - 0
       - 0
-      scheduling_period: '1 min'
+      scheduling_period: 1 min
       properties:
         record-writer: json-writer
         number-of-records: '1'
@@ -266,105 +266,105 @@ process_group:
       - success
   - name: NestedWorkflow
     position:
-    - 3200
-    - 0
+    - 800
+    - 600
     processors: []
     process_groups:
-      - name: SubFunction
-        position:
-        - 0
-        - 0
-        processors:
-          - id: nested-sub-generate
-            name: Generate FlowFile (Sub)
-            type: org.apache.nifi.processors.standard.GenerateFlowFile
-            position:
-            - 0
-            - 0
-            scheduling_period: '1 min'
-            properties:
-              Batch Size: '1'
-          - id: nested-sub-log
-            name: LogAttribute (Sub)
-            type: org.apache.nifi.processors.standard.LogAttribute
-            position:
-            - 400
-            - 0
-        connections:
-          - name: Sub Generate to Log
-            source: nested-sub-generate
-            destination: nested-sub-log
-            relationships:
-            - success
-        auto_terminate:
-          nested-sub-log:
-          - success
-  - name: NestedPortsWorkflow
-    position:
-    - 4000
-    - 0
-    processors:
-      - id: nested-source
-        name: Nested Source
+    - name: SubFunction
+      position:
+      - 0
+      - 0
+      processors:
+      - id: nested-sub-generate
+        name: Generate FlowFile (Sub)
         type: org.apache.nifi.processors.standard.GenerateFlowFile
         position:
         - 0
         - 0
-        scheduling_period: '1 min'
+        scheduling_period: 1 min
         properties:
           Batch Size: '1'
-          Data Format: Text
-          Custom Text: nested payload
-      - id: nested-result-log
-        name: Nested Result Logger
+      - id: nested-sub-log
+        name: LogAttribute (Sub)
         type: org.apache.nifi.processors.standard.LogAttribute
         position:
-        - 1200
+        - 400
         - 0
-    process_groups:
-      - name: NestedPortsSubflow
-        position:
-        - 600
-        - 0
-        input_ports:
-          - id: nested-sub-in
-            name: Nested Sub In
-            position:
-            - 0
-            - -100
-        output_ports:
-          - id: nested-sub-out
-            name: Nested Sub Out
-            position:
-            - 400
-            - -100
-        processors:
-          - id: nested-sub-log
-            name: LogAttribute (Nested Sub)
-            type: org.apache.nifi.processors.standard.LogAttribute
-            position:
-            - 200
-            - 0
-        connections:
-          - name: Sub In to Log
-            source: nested-sub-in
-            destination: nested-sub-log
-            relationships: []
-          - name: Sub Log to Out
-            source: nested-sub-log
-            destination: nested-sub-out
-            relationships:
-            - success
-    connections:
-      - name: Source to Subflow
-        source: nested-source
-        destination: nested-sub-in
+      connections:
+      - name: Sub Generate to Log
+        source: nested-sub-generate
+        destination: nested-sub-log
         relationships:
         - success
-      - name: Subflow to Result
-        source: nested-sub-out
-        destination: nested-result-log
+      auto_terminate:
+        nested-sub-log:
+        - success
+  - name: NestedPortsWorkflow
+    position:
+    - 1600
+    - 600
+    processors:
+    - id: nested-source
+      name: Nested Source
+      type: org.apache.nifi.processors.standard.GenerateFlowFile
+      position:
+      - 0
+      - 0
+      scheduling_period: 1 min
+      properties:
+        Batch Size: '1'
+        Data Format: Text
+        Custom Text: nested payload
+    - id: nested-result-log
+      name: Nested Result Logger
+      type: org.apache.nifi.processors.standard.LogAttribute
+      position:
+      - 1200
+      - 0
+    process_groups:
+    - name: NestedPortsSubflow
+      position:
+      - 600
+      - 0
+      input_ports:
+      - id: nested-sub-in
+        name: Nested Sub In
+        position:
+        - 0
+        - -100
+      output_ports:
+      - id: nested-sub-out
+        name: Nested Sub Out
+        position:
+        - 400
+        - -100
+      processors:
+      - id: nested-sub-log
+        name: LogAttribute (Nested Sub)
+        type: org.apache.nifi.processors.standard.LogAttribute
+        position:
+        - 200
+        - 0
+      connections:
+      - name: Sub In to Log
+        source: nested-sub-in
+        destination: nested-sub-log
         relationships: []
+      - name: Sub Log to Out
+        source: nested-sub-log
+        destination: nested-sub-out
+        relationships:
+        - success
+    connections:
+    - name: Source to Subflow
+      source: nested-source
+      destination: nested-sub-in
+      relationships:
+      - success
+    - name: Subflow to Result
+      source: nested-sub-out
+      destination: nested-result-log
+      relationships: []
     auto_terminate:
       nested-result-log:
       - success
