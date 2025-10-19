@@ -81,3 +81,15 @@ def collect_invalid_ports(client: NiFiClient) -> List[Dict[str, object]]:
         invalid.extend(_collect_invalid_components(flow.get("inputPorts") or [], path))
         invalid.extend(_collect_invalid_components(flow.get("outputPorts") or [], path))
     return invalid
+
+
+def count_processor_states(client: NiFiClient) -> Dict[str, int]:
+    """Return counts of processors grouped by their run state."""
+
+    counts: Dict[str, int] = {}
+    for _, flow in _walk_process_groups(client):
+        for processor in flow.get("processors") or []:
+            component = processor.get("component") or {}
+            state = component.get("state") or "UNKNOWN"
+            counts[state] = counts.get(state, 0) + 1
+    return counts

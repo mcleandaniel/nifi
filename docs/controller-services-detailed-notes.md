@@ -24,6 +24,37 @@
    ```
 4. Only after the standalone test passes should you attempt higher-level deployments (e.g., `NiFi_Flow.yaml`).
    Avoid purging **after** tests run; preserve the deployed state so you can inspect any failures.
+5. If a controller service refuses to disable (automation hits `state=ENABLED` after retries), stop every processor
+   that references it and retry the disable. NiFi will not disable a service while dependent processors remain
+   running or enabling. In practice the fastest way is to schedule the root process group to `STOPPED`, wait for all
+   processors to reach `STOPPED`, disable the services, and only then rerun `automation/scripts/purge_nifi_root.py`.
+
+   ```bash
+   # Stop everything from the root canvas
+   curl -sk -H "Authorization: Bearer $TOKEN" \
+     -H 'Content-Type: application/json' \
+     -X PUT "$NIFI_BASE_URL/flow/process-groups/root" \
+     -d '{"id":"root","state":"STOPPED"}'
+
+   # Poll processor states (optional sanity check)
+   curl -sk -H "Authorization: Bearer $TOKEN" \
+     "$NIFI_BASE_URL/flow/process-groups/root" \
+     | jq '.processGroupFlow.flow.processors[] | {name: .component.name, state: .component.state}'
+   ```
+
+   Once the processors report `STOPPED`, disable the services. If you need to troubleshoot individual dependencies,
+   the REST sequence below will list them explicitly:
+
+   ```bash
+   curl -sk -H "Authorization: Bearer $TOKEN" \
+     "$NIFI_BASE_URL/controller-services/$SERVICE_ID" \
+     | jq '.component.referencingComponents[] | {id: .id, name: .name, type: .referenceType}'
+   ```
+
+   For each `referenceType == "Processor"`, stop the processor by calling `PUT /processors/{id}` with
+   `{ "component": { "id": "<id>", "state": "STOPPED" }, "revision": { ... } }`. Poll until the processor
+   reports `state=STOPPED`, then issue `PUT /controller-services/$SERVICE_ID/run-status` with `state=DISABLED`.
+   Only once the service returns `DISABLED` should you proceed with deletion.
 
 ## Next Steps
 - Codify the standalone provisioning test in `tests/integration/test_live_nifi.py` and ensure the CI (or local workflow) runs it before flow deployment tests.

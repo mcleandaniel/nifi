@@ -14,8 +14,12 @@ from nifi_automation.controller_registry import (
     clear_manifest_service_ids,
     ensure_root_controller_services,
 )
-from nifi_automation.diagnostics import collect_invalid_ports, collect_invalid_processors
-from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec
+from nifi_automation.diagnostics import (
+    collect_invalid_ports,
+    collect_invalid_processors,
+    count_processor_states,
+)
+from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec, start_processors
 
 
 pytestmark = pytest.mark.integration
@@ -186,3 +190,9 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
     invalid_ports = collect_invalid_ports(nifi_client)
     assert not invalid_procs, f"Invalid processors detected: {invalid_procs}"
     assert not invalid_ports, f"Invalid ports detected: {invalid_ports}"
+
+    start_processors(nifi_client)
+
+    state_counts = count_processor_states(nifi_client)
+    stopped = state_counts.get("STOPPED", 0)
+    assert stopped == 0, f"Found {stopped} stopped processors: {state_counts}"

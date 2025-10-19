@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
 import yaml
 
 from .client import NiFiClient
+from .diagnostics import count_processor_states
 
 
 @dataclass
@@ -648,3 +650,20 @@ def deploy_flow_from_file(
     spec = load_flow_spec(path)
     deployer = FlowDeployer(client, spec, controller_service_map=controller_service_map)
     return deployer.deploy()
+
+
+def start_processors(client: NiFiClient, root_pg_id: str = "root", timeout: float = 30.0) -> None:
+    """Request NiFi to start all processors under the root process group."""
+
+    client.schedule_process_group(root_pg_id, "RUNNING")
+
+    deadline = time.time() + timeout
+    while True:
+        counts = count_processor_states(client)
+        stopped = counts.get("STOPPED", 0)
+        starting = counts.get("STARTING", 0)
+        if stopped == 0 and starting == 0:
+            return
+        if time.time() > deadline:
+            raise FlowDeploymentError(f"Processors failed to reach RUNNING state: {counts}")
+        time.sleep(0.5)

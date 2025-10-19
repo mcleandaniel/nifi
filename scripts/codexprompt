@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+FLAGS_REQUIRING_VALUE = {
+    "model",
+    "m",
+    "profile",
+    "p",
+    "sandbox",
+    "s",
+    "output-schema",
+    "output-last-message",
+    "o",
+    "color",
+    "cd",
+    "C",
+    "config",
+    "c",
+    "image",
+    "i",
+}
+
+
+def codex_home() -> Path:
+    home_override = os.environ.get("CODEX_HOME")
+    if home_override:
+        return Path(home_override).expanduser()
+    return Path.home() / ".codex"
+
+
+def resolve_template_path(raw: str) -> Path:
+    candidate = Path(raw).expanduser()
+    if candidate.is_file():
+        return candidate
+
+    name = raw.strip()
+    if name.startswith("/"):
+        name = name.lstrip("/")
+
+    if ":" in name:
+        name = name.split(":", 1)[1]
+
+    if not name.endswith(".md"):
+        name = f"{name}.md"
+
+    return codex_home() / "prompts" / name
+
+
+def strip_front_matter(content: str) -> str:
+    lines = content.splitlines(keepends=True)
+    if not lines:
+        return content
+
+    if lines[0].strip() != "---":
+        return content
+
+    for idx, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            body = "".join(lines[idx + 1:])
+            return body.lstrip("\r\n")
+
+    return content
+
+
+def substitute_positional_args(template: str, args: list[str]) -> str:
+    sentinel = "__CODXPROMPT_LITERAL_DOLLAR__"
+    text = template.replace("$$", sentinel)
+
+    for index in range(1, 10):
+        placeholder = f"${index}"
+        if placeholder in text:
+            try:
+                replacement = args[index - 1]
+            except IndexError as exc:
+                raise ValueError(f"Missing value for {placeholder}") from exc
+            text = text.replace(placeholder, replacement)
+
+    if "$ARGUMENTS" in text:
+        text = text.replace("$ARGUMENTS", " ".join(args))
+
+    return text.replace(sentinel, "$")
+
+
+def load_template(path: Path) -> str:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Prompt template not found: {path}") from None
+    return strip_front_matter(raw)
+
+
+def print_help() -> None:
+    help_text = """Render a Codex prompt file, expand $1…$9 placeholders, then run `codex exec`.
+
+Usage:
+  codexprompt [codex-flags] [--] TEMPLATE [prompt-args...]
+  codexprompt --print-only [--] TEMPLATE [prompt-args...]
+
+Options:
+  --print-only        Only render the template text and write it to stdout.
+  -h, --help          Show this message.
+
+Arguments:
+  TEMPLATE            Prompt name (e.g. weather-town) or path to a .md file.
+  prompt-args...      Positional values that substitute $1, $2 … inside TEMPLATE.
+
+Codex flags:
+  Any flags placed before TEMPLATE (e.g. --search, --model gpt-5, -c foo=bar,
+  --cd <DIR>) are forwarded directly to the `codex` binary before `exec`.
+  Use `--` if the template name might be mistaken for a flag.
+
+Examples:
+  codexprompt weather-polegate
+    → runs `codex exec "What is the current weather in Polegate, United Kingdom?"`
+
+  codexprompt --search weather-town "Brighton"
+    → runs `codex --search exec "What is the current weather in Brighton, United Kingdom?"`
+
+  codexprompt --print-only weather-town "Brighton"
+    → prints the rendered prompt without invoking codex.
+
+  codexprompt --cd . -- research-assistant "$(cat draft.md)" > output.md
+    → forwards `--cd .` to codex, renders the `research-assistant` template with
+      the file contents substituted as $1, and writes the final text to output.md.
+"""
+    print(help_text)
+
+
+def main() -> int:
+    argv = sys.argv[1:]
+
+    if not argv:
+        print_help()
+        return 1
+
+    print_only = False
+    filtered: list[str] = []
+    for arg in argv:
+        if arg == "--print-only":
+            print_only = True
+        else:
+            filtered.append(arg)
+    argv = filtered
+
+    if "-h" in argv or "--help" in argv:
+        print_help()
+        return 0
+    argv = [arg for arg in argv if arg not in ("-h", "--help")]
+
+    if not argv:
+        print("codexprompt: missing template argument", file=sys.stderr)
+        return 1
+
+    codex_args: list[str] = []
+    idx = 0
+    while idx < len(argv):
+        token = argv[idx]
+        if token == "--":
+            idx += 1
+            break
+        if token.startswith("-"):
+            codex_args.append(token)
+            if "=" in token:
+                idx += 1
+                continue
+            flag_name = token.lstrip("-")
+            if flag_name in FLAGS_REQUIRING_VALUE:
+                idx += 1
+                if idx >= len(argv):
+                    print(f"codexprompt: missing value for flag {token}", file=sys.stderr)
+                    return 1
+                codex_args.append(argv[idx])
+                idx += 1
+                continue
+            idx += 1
+            continue
+        break
+
+    if idx >= len(argv):
+        print("codexprompt: missing template argument", file=sys.stderr)
+        return 1
+
+    template_arg = argv[idx]
+    prompt_args = argv[idx + 1 :]
+
+    template_path = resolve_template_path(template_arg)
+    body = load_template(template_path)
+
+    try:
+        rendered = substitute_positional_args(body, prompt_args)
+    except ValueError as exc:
+        print(f"codexprompt: {exc}", file=sys.stderr)
+        return 1
+
+    if print_only:
+        sys.stdout.write(rendered)
+        if not rendered.endswith("\n"):
+            sys.stdout.write("\n")
+        return 0
+
+    command = ["codex", *codex_args, "exec", rendered]
+    result = subprocess.run(command)
+    return result.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

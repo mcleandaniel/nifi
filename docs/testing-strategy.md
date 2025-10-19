@@ -13,7 +13,7 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 | **Environment preparation** | `automation/scripts/purge_nifi_root.py` | Drops queued FlowFiles, deletes connections/processors/ports/child PGs, and removes root-level controller services. | Must be executed before any deployment or test batch. Never run it after tests; preserve failing state for analysis. |
 
 ## 3. Execution Workflow
-1. **Assume NiFi is dirty** – start every batch by running `automation/scripts/purge_nifi_root.py`. The script currently retries queue drops and attempts to disable/delete ports, but see the known issue below when FlowFiles are still transiting ports.
+1. **Assume NiFi is dirty** – before running `automation/scripts/purge_nifi_root.py`, schedule the root process group to `STOPPED` (via the UI or CLI) so all processors halt cleanly. Once everything reports `STOPPED`, disable the root-level controller services, then run the purge script. The purge step retries queue drops and attempts to delete ports, but see the known issue below when FlowFiles are still transiting ports.
 2. **Provision controller services** – integration tests call `ensure_root_controller_services` as the first step. It aborts if any services already exist, reinforcing the purge-first rule.
 3. **Deploy flow specification(s)** – `deploy_flow_from_file` pushes the YAML spec to the live instance. All specs must present a top-level `process_group.name` of `NiFi Flow`; content is materialised directly into the built-in root PG (no duplicate parent group).
 4. **Assertions** – the test suite checks for:
@@ -57,3 +57,10 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 - Standalone diagnostics: `automation/scripts/check_invalid_components.py`
 - Purge before any deployment/test: `automation/scripts/purge_nifi_root.py`
 - Codex tip: when running from a sandboxed Codex session, enable network access first (`codex --sandbox workspace-write -c sandbox_workspace_write.network_access=true`). Without it, even the initial `/access/token` call fails with `[Errno 1] Operation not permitted`, which can masquerade as a purge bug.
+- Quick stop-all (before purge):
+  ```bash
+  curl -sk -H "Authorization: Bearer $TOKEN" \
+    -H 'Content-Type: application/json' \
+    -X PUT "$NIFI_BASE_URL/flow/process-groups/root" \
+    -d '{"id":"root","state":"STOPPED"}'
+  ```

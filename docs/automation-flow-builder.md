@@ -143,7 +143,7 @@ process_group:
 - `process_groups` for nested structures (e.g., `NestedWorkflow` containing `SubFunction`)
 - `ports` with separate lists for `input_ports` and `output_ports`
 - Controller-service references that resolve against `automation/manifest/controller-services.json`
-- Optional scheduling hints per processor via `scheduling_period` (e.g., `'1 min'`) and `scheduling_strategy`
+- Optional scheduling hints per processor via `scheduling_period` (e.g., `'1 min'`) and `scheduling_strategy`; omit them to keep NiFi's defaults.
 
 **Future additions still under design**
 - `parameter_context`

@@ -65,6 +65,18 @@ def _stop_processor(client: NiFiClient, processor_id: str) -> None:
     revision = processor.get("revision") or {}
     body = {"revision": revision, "component": {"id": processor_id, "state": "STOPPED"}}
     client._client.put(f"/processors/{processor_id}", json=body).raise_for_status()
+    deadline = time.time() + 30.0
+    while True:
+        status_resp = client._client.get(f"/processors/{processor_id}")
+        if status_resp.status_code == 404:
+            return
+        status_resp.raise_for_status()
+        state = status_resp.json().get("component", {}).get("state")
+        if state == "STOPPED":
+            return
+        if time.time() > deadline:
+            raise RuntimeError(f"Processor {processor_id} did not stop within timeout (state={state})")
+        time.sleep(0.2)
 
 
 def _delete_processor(client: NiFiClient, processor_id: str) -> None:

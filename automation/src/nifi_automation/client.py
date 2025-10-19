@@ -154,6 +154,37 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         response.raise_for_status()
         return response.json()["component"]
 
+    def set_processor_state(self, processor_id: str, state: str) -> None:
+        for attempt in range(5):
+            entity_resp = self._client.get(f"/processors/{processor_id}")
+            entity_resp.raise_for_status()
+            entity = entity_resp.json() or {}
+            revision = entity.get("revision") or {}
+            component = {"id": processor_id, "state": state}
+            body = {"revision": revision, "component": component}
+            response = self._client.put(f"/processors/{processor_id}", json=body)
+            try:
+                response.raise_for_status()
+                return
+            except httpx.HTTPStatusError as exc:  # pragma: no cover - retry loop
+                if exc.response is None or exc.response.status_code != 409 or attempt == 4:
+                    raise
+                time.sleep(0.2)
+
+    def schedule_process_group(self, process_group_id: str, state: str) -> None:
+        for attempt in range(5):
+            response = self._client.put(
+                f"/flow/process-groups/{process_group_id}",
+                json={"id": process_group_id, "state": state},
+            )
+            try:
+                response.raise_for_status()
+                return
+            except httpx.HTTPStatusError as exc:  # pragma: no cover - retry loop
+                if exc.response is None or exc.response.status_code != 409 or attempt == 4:
+                    raise
+                time.sleep(0.2)
+
     def update_processor_autoterminate(self, processor_id: str, relationships: List[str]) -> None:
         entity = self._client.get(f"/processors/{processor_id}").json()
         revision = entity.get("revision", {})
