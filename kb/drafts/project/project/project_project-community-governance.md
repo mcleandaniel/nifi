@@ -20,5 +20,4 @@ Summarize contributor guidelines, licensing obligations, and ASF governance expe
 Community and ASF Governance
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

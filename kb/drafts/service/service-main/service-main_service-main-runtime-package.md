@@ -19,5 +19,4 @@ Describe how the server distribution is assembled, including directory layout, N
 NiFi Server Packaging and Layout
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

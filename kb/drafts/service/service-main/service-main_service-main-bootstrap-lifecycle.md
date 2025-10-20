@@ -19,5 +19,4 @@ Document how bootstrap services start, monitor, and restart NiFi, including scri
 Bootstrap and Lifecycle Scripts
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

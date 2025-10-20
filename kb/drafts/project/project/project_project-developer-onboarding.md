@@ -20,5 +20,4 @@ Collect the key guides developers use to set up environments, build the codebase
 Developer Onboarding Guides
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

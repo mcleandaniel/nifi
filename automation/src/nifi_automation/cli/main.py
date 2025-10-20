@@ -176,6 +176,11 @@ def cli_command(
         dry_run=dry_run if key in FLOWFILE_COMMANDS else False,
     )
 
+    if config.verbose:
+        click.echo(f"[cli] executing {verb_normalized} {target.name}", err=True)
+        if flowfile is not None:
+            click.echo(f"[cli] flowfile: {flowfile}", err=True)
+
     try:
         result = _dispatch(
             key,
@@ -202,3 +207,7 @@ def main() -> None:
     """Entrypoint used by scripts and `python -m` invocation."""
 
     app()
+
+
+if __name__ == "__main__":
+    main()

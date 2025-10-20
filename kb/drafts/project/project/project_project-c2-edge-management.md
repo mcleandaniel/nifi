@@ -19,5 +19,4 @@ Explain how the C2 modules orchestrate remote agents, deliver updates, and integ
 Command and Control for Edge Agents
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import sys
+
 from ..infra import ctrl_adapter, status_adapter
 from .client import open_client
 from .models import AppConfig, CommandResult, ExitCode
+
+
+def _log(config: AppConfig, message: str) -> None:
+    if config.verbose:
+        print(message, file=sys.stderr)
 from .status_rules import rollup_processors
 
 
@@ -12,7 +19,9 @@ def start_all(*, config: AppConfig) -> CommandResult:
     """Enable required controllers and start all processors."""
 
     with open_client(config) as client:
+        _log(config, "[proc] enabling controller services required for processors")
         ctrl_adapter.enable_all_controllers(client, timeout=config.timeout_seconds)
+        _log(config, "[proc] starting all processors")
         ctrl_adapter.start_all_processors(client, timeout=config.timeout_seconds)
         processors = status_adapter.fetch_processors(client)["items"]
 
@@ -27,6 +36,7 @@ def start_all(*, config: AppConfig) -> CommandResult:
 
 def stop_all(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[proc] stopping all processors")
         ctrl_adapter.stop_all_processors(client, timeout=config.timeout_seconds)
         processors = status_adapter.fetch_processors(client)["items"]
 
@@ -39,6 +49,7 @@ def stop_all(*, config: AppConfig) -> CommandResult:
 
 def status(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[proc] collecting processor status")
         processors = status_adapter.fetch_processors(client)["items"]
     rollup = rollup_processors(processors)
     exit_code = ExitCode.VALIDATION if rollup.has_invalid else ExitCode.SUCCESS

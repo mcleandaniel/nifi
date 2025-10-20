@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Optional
 
 from ..infra import purge_adapter, status_adapter
@@ -10,9 +11,15 @@ from .models import AppConfig, CommandResult, ExitCode
 from .status_rules import rollup_connections
 
 
+def _log(config: AppConfig, message: str) -> None:
+    if config.verbose:
+        print(message, file=sys.stderr)
+
+
 def truncate_all(*, config: AppConfig, force: bool = False, max_messages: Optional[int] = None) -> CommandResult:
     # force/max currently informational; NiFi drop endpoint clears entire queue.
     with open_client(config) as client:
+        _log(config, "[conn] truncating root-level connections")
         summary = purge_adapter.truncate_connections(client)
     return CommandResult(
         message=f"Dropped FlowFiles from {summary['count']} connections",
@@ -22,6 +29,7 @@ def truncate_all(*, config: AppConfig, force: bool = False, max_messages: Option
 
 def status(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[conn] collecting connection status")
         connections = status_adapter.fetch_connections(client)["items"]
     rollup = rollup_connections(connections)
     exit_code = ExitCode.VALIDATION if rollup.worst == "BLOCKED" else ExitCode.SUCCESS

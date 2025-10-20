@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
@@ -103,3 +106,18 @@ def test_force_flag_rejected_for_other_commands() -> None:
     result = runner.invoke(app, ["status", "processors", "--force"])
     assert result.exit_code != 0
     assert "force" in result.stderr.lower()
+
+
+def test_module_entrypoint_invocation() -> None:
+    env = os.environ.copy()
+    project_root = Path(__file__).resolve().parents[2]
+    src_path = project_root / "src"
+    env["PYTHONPATH"] = f"{src_path}{os.pathsep}{env.get('PYTHONPATH', '')}"
+    completed = subprocess.run(
+        [sys.executable, "-m", "nifi_automation.cli.main", "--help"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 0
+    assert "Usage:" in completed.stdout

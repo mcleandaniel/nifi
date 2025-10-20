@@ -101,7 +101,7 @@ Please review individual project documentation for additional details.
 
 ### Repository Documentation
 
-- [CLI Refactor Plan](docs/cli-refactor-plan.md)
+- [CLI Refactor Plan](docs/cli-refactor-plan.md) — includes the test checklist (ensure `python -m nifi_automation.cli.main --help` passes so the module entry point stays wired in).
 
 ## Getting Started
 

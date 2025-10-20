@@ -20,5 +20,4 @@ Describe static analysis, coverage measurement, and CI workflows enforcing proje
 Quality Gates and Continuous Verification
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

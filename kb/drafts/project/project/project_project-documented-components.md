@@ -19,5 +19,4 @@ Detail how component docs are generated, curated, and synchronized with released
 Component Documentation Pipeline
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

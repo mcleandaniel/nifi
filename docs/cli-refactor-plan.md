@@ -93,8 +93,17 @@ clitool <verb> <target> [args]
 
 ## Testing Plan
 1. **Unit tests** (pytest): alias parsing, dispatcher routing, severity/roll-up logic, orchestration flows (mocked adapters), graceful purge order, exception→exit mapping.
+   - Include a subprocess test that runs `python -m nifi_automation.cli.main --help` to prove the module entry point is wired correctly (prevents regressions when the CLI is invoked via `python -m`).
 2. **Live integration** (after unit tests pass): load `.env`; run `clitool run flow <manifest>` then `clitool status flow`; expect roll-up `UP` or `HEALTHY` (text token).
+   - Automated coverage lives in `automation/tests/integration/test_cli_live.py`, which invokes the CLI via `python -m nifi_automation.cli.main ...` whenever NiFi is reachable.
+   - Tests purge the instance once at the start to enforce a clean state, then leave the deployed flow in place (never purge or stop at the end).
 
 ## Constraints
 - Do not alter existing backend modules until the new CLI, unit tests, and live NiFi integration have succeeded.
 - If backend limitations force deviations, document them in an Adaptation Summary before making changes.
+
+## TODO / Future Enhancements
+- Replace the current `.env` + flag approach with layered configuration files:
+  - A CLI runtime config (e.g. `config/cli.toml`) to persist TLS settings, defaults such as `verify_ssl`, `ca_bundle`, timeouts, and preferred output modes.
+  - A separate automation defaults file to manage controller/processor property overrides that apply before deployments.
+- Extend TLS handling to support custom trust stores in addition to the simple `verify_ssl` boolean used today.

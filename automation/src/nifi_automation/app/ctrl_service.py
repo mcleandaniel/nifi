@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import sys
+
 from ..infra import ctrl_adapter, status_adapter
 from .client import open_client
 from .models import AppConfig, CommandResult, ExitCode
+
+
+def _log(config: AppConfig, message: str) -> None:
+    if config.verbose:
+        print(message, file=sys.stderr)
 from .status_rules import rollup_controllers
 
 
 def enable_all(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[ctrl] enabling controller services")
         summary = ctrl_adapter.enable_all_controllers(client, timeout=config.timeout_seconds)
         controllers = status_adapter.fetch_controllers(client)["items"]
 
@@ -24,6 +32,7 @@ def enable_all(*, config: AppConfig) -> CommandResult:
 
 def disable_all(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[ctrl] disabling controller services")
         summary = ctrl_adapter.disable_all_controllers(client, timeout=config.timeout_seconds)
         controllers = status_adapter.fetch_controllers(client)["items"]
 
@@ -36,6 +45,7 @@ def disable_all(*, config: AppConfig) -> CommandResult:
 
 def status(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[ctrl] collecting controller service status")
         controllers = status_adapter.fetch_controllers(client)["items"]
     rollup = rollup_controllers(controllers)
     exit_code = ExitCode.VALIDATION if rollup.has_invalid else ExitCode.SUCCESS

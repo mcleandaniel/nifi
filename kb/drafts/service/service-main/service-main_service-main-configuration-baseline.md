@@ -18,5 +18,4 @@ Explain the foundational configuration files that govern ports, repositories, pr
 Core Configuration Baseline
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

@@ -1,0 +1,15 @@
+process_group:
+  name: NiFi Flow
+  position: [0, 0]
+  process_groups:
+    - name: TrivialFlow
+      position: [0, 0]
+      processors:
+        - key: generate
+          id: generate
+          name: GenerateFlowFile
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          position: [0, 0]
+          properties:
+            Batch Size: "1"
+      connections: []

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+import sys
 
 from ..infra import ctrl_adapter, deploy_adapter, diag_adapter, purge_adapter, status_adapter
 from .client import open_client
@@ -12,6 +13,11 @@ from .models import AppConfig, CommandResult, ExitCode
 from .status_rules import rollup_controllers, rollup_flow, rollup_processors
 
 POLL_INTERVAL = 0.5
+
+
+def _log(config: AppConfig, message: str) -> None:
+    if config.verbose:
+        print(message, file=sys.stderr)
 
 
 def _await_stable_states(config: AppConfig, client) -> None:
@@ -43,15 +49,21 @@ def _collect_flow_status(client):
 def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
     if config.dry_run:
         with open_client(config) as client:
+            _log(config, "[flow] generating dry-run deployment plan")
             result = deploy_adapter.deploy_flow(client, flowfile, dry_run=True)
         return CommandResult(message="Dry-run deployment plan", data=result["summary"])
 
     with open_client(config) as client:
         try:
+            _log(config, "[flow] purging NiFi root before deployment")
             purge_adapter.graceful_purge(client)
+            _log(config, "[flow] deploying flow specification")
             deploy_result = deploy_adapter.deploy_flow(client, flowfile, dry_run=False)
+            _log(config, "[flow] waiting for deployed components to stabilize")
             _await_stable_states(config, client)
+            _log(config, "[flow] enabling controller services")
             ctrl_adapter.enable_all_controllers(client, timeout=config.timeout_seconds)
+            _log(config, "[flow] starting processors")
             ctrl_adapter.start_all_processors(client, timeout=config.timeout_seconds)
             _await_stable_states(config, client)
             status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
@@ -89,9 +101,12 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
 def deploy_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
     with open_client(config) as client:
         if config.dry_run:
+            _log(config, "[flow] generating dry-run deployment plan")
             result = deploy_adapter.deploy_flow(client, flowfile, dry_run=True)
             return CommandResult(message="Dry-run deployment plan", data=result["summary"])
+        _log(config, "[flow] purging NiFi root before deployment")
         purge_adapter.graceful_purge(client)
+        _log(config, "[flow] deploying flow specification")
         result = deploy_adapter.deploy_flow(client, flowfile, dry_run=False)
         status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
     exit_code = ExitCode.VALIDATION if status_token == "INVALID" else ExitCode.SUCCESS
@@ -112,7 +127,9 @@ def deploy_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
 def up_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
         try:
+            _log(config, "[flow] enabling controller services")
             ctrl_adapter.enable_all_controllers(client, timeout=config.timeout_seconds)
+            _log(config, "[flow] starting processors")
             ctrl_adapter.start_all_processors(client, timeout=config.timeout_seconds)
             _await_stable_states(config, client)
             status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
@@ -134,7 +151,9 @@ def up_flow(*, config: AppConfig) -> CommandResult:
 
 def down_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[flow] stopping processors")
         ctrl_adapter.stop_all_processors(client, timeout=config.timeout_seconds)
+        _log(config, "[flow] disabling controller services")
         ctrl_adapter.disable_all_controllers(client, timeout=config.timeout_seconds)
         status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
     exit_code = ExitCode.VALIDATION if status_token == "INVALID" else ExitCode.SUCCESS
@@ -148,6 +167,7 @@ def down_flow(*, config: AppConfig) -> CommandResult:
 
 def purge_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
+        _log(config, "[flow] purging NiFi root")
         summary = purge_adapter.graceful_purge(client)
     return CommandResult(message="Purged NiFi root", data=summary)
 
