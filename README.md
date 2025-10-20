@@ -99,6 +99,10 @@ Please review individual project documentation for additional details.
 - [Apache NiFi Registry](https://github.com/apache/nifi/blob/main/nifi-registry/nifi-registry-assembly/README.md)
 - [Apache NiFi MiNiFi](https://github.com/apache/nifi/blob/main/minifi/minifi-assembly/README.md)
 
+### Repository Documentation
+
+- [CLI Refactor Plan](docs/cli-refactor-plan.md)
+
 ## Getting Started
 
 Project guides provide extensive documentation for installing and extending the application.
