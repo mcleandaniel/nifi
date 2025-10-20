@@ -19,4 +19,6 @@ def test_load_sample_flow_spec() -> None:
     assert spec.root_group.name == "NiFi Flow"
     child_names = [child.name for child in spec.root_group.child_groups]
     assert "TrivialFlow" in child_names
-    assert spec.root_group.child_groups[0].processors[0].name == "GenerateFlowFile"
+    first_child = spec.root_group.child_groups[0]
+    assert first_child.position == (0.0, 0.0)
+    assert first_child.processors[0].name == "GenerateFlowFile"

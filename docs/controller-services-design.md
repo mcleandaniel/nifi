@@ -113,6 +113,7 @@ This process assumes **no existing controller services** are deployed. It should
 
 ## Deployment Workflow
 
+<!-- You may need to change into the automation directory before running the following command. -->
 - `nifi-automation deploy-flow <spec>` now orchestrates steps 1–7 automatically:
   1. Purge requirements are enforced by `ensure_root_controller_services`.
   2. Controller services are created directly from the manifest.

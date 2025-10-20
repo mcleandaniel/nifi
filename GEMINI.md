@@ -71,4 +71,8 @@ The main application binary is located at `nifi-assembly/target/nifi-*-bin.zip`.
     - **NiFi Registry:** A subproject for storing and managing versioned flows.
     - **MiNiFi:** A smaller, lightweight version of NiFi designed for edge data collection.
 
+## Automation Project
+
+The `automation` sub-project contains Python-based tools for REST API automation. On startup, please read the `automation/README.md` file to ensure you have the latest instructions for running tests and other automation tasks.
+
 This information should provide a good starting point for understanding and working with the Apache NiFi project.

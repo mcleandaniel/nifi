@@ -156,6 +156,7 @@ The updated helper in `automation/src/nifi_automation/controller_registry.py` no
 
 Once the controller services enable cleanly with the canonical payloads, rerun:
 
+<!-- You may need to change into the automation directory before running the following command. -->
 ```bash
 RUN_NIFI_INTEGRATION=1 .venv/bin/python -m pytest
 ```

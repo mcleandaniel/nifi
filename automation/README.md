@@ -38,7 +38,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
   ```bash
   nifi-automation auth-token
   nifi-automation flow-summary
-  nifi-automation deploy-flow flows/NiFi_Flow.yaml
+  nifi-automation deploy-flow automation/flows/NiFi_Flow.yaml
   nifi-automation controller-services-report --format markdown
   nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
   ```
@@ -53,7 +53,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
   ```bash
   scripts/run_integration_suite.sh
   ```
-  This script purges NiFi once, deploys `flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
+  This script purges NiFi once, deploys `automation/flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
   services, and fails immediately if NiFi reports any invalid processors. Leave NiFi untouched after the run so the
   final deployed state is available for inspection.
    > Codex sandbox note: if you execute this from a sandboxed session, enable network access first  
@@ -116,7 +116,7 @@ When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`),
    set -a; source ../.env; set +a
    .venv/bin/python scripts/purge_nifi_root.py
    ```
-2. **Deploy** – call `nifi-automation deploy-flow flows/NiFi_Flow.yaml` *or* run the convenience script:
+2. **Deploy** – call `nifi-automation deploy-flow automation/flows/NiFi_Flow.yaml` *or* run the convenience script:
    ```bash
    .venv/bin/python scripts/deploy_flows.py
    ```
@@ -133,11 +133,11 @@ If the deploy fails because services already exist, purge again—`ensure_root_c
 
 ## Flow Specifications
 - Declarative specs live under `flows/`. Examples:
-  - `flows/NiFi_Flow.yaml`: deploys `TrivialFlow`, `SimpleWorkflow`, `MediumWorkflow`, `ComplexWorkflow`, and
+  - `automation/flows/NiFi_Flow.yaml`: deploys `TrivialFlow`, `SimpleWorkflow`, `MediumWorkflow`, `ComplexWorkflow`, and
     `NestedWorkflow` (which itself contains a `SubFunction` process group) beneath the `NiFi Flow` root.
   - `flows/trivial.yaml`, `flows/simple.yaml`, `flows/medium.yaml`, `flows/complex.yaml`, `flows/nested.yaml`, `flows/nested_ports.yaml`:
     single-flow specs that target the same root and create only the named child group.
-- `nifi-automation deploy-flow flows/NiFi_Flow.yaml` recreates the entire hierarchy each time.
+- `nifi-automation deploy-flow automation/flows/NiFi_Flow.yaml` recreates the entire hierarchy each time.
 
 To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
 

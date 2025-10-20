@@ -25,7 +25,7 @@ from nifi_automation.flow_builder import deploy_flow_from_file, load_flow_spec, 
 pytestmark = pytest.mark.integration
 
 
-DEFAULT_FLOW_FILES = [Path("flows/NiFi_Flow.yaml")]
+DEFAULT_FLOW_FILES = [Path("automation/flows/NiFi_Flow.yaml")]
 _flow_override = os.getenv("NIFI_FLOW_SPECS")
 if _flow_override:
     FLOW_FILES: Iterable[Path] = [

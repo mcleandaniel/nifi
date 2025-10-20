@@ -52,6 +52,8 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
    - Integrate NiFi metrics/bulletins into CI dashboards with automatic gating.
 
 ## 7. Usage Cheatsheet
+
+<!-- You may need to change into the automation directory before running the following commands. -->
 - Run full suite: `automation/scripts/run_integration_suite.sh`
 - Target a specific flow: `automation/scripts/run_integration_suite.sh automation/flows/complex.yaml`
 - Standalone diagnostics: `automation/scripts/check_invalid_components.py`

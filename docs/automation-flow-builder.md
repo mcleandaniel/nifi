@@ -32,26 +32,22 @@ We assume:
 - Extensible to support more complex flows without major rewrites.
 
 ## 3. Flow Specification Format
-Declarative YAML structure (`flows/NiFi_Flow.yaml` – excerpt):
+Declarative YAML structure (`automation/flows/NiFi_Flow.yaml` – excerpt):
 ```yaml
 process_group:
   name: NiFi Flow
-  position: [0, 0]
   process_groups:
     - name: TrivialFlow
-      position: [0, 0]
       processors:
         - id: generate
           name: Generate FlowFile
           type: org.apache.nifi.processors.standard.GenerateFlowFile
-          position: [0, 0]
           scheduling_period: '1 min'
           properties:
             Batch Size: "1"
         - id: log
           name: Log Attribute
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [400, 0]
       connections:
         - name: Generate to Log
           source: generate
@@ -61,12 +57,10 @@ process_group:
         log:
           - success
     - name: SimpleWorkflow
-      position: [800, 0]
       processors:
         - id: generate
           name: GenerateRecord
           type: org.apache.nifi.processors.standard.GenerateRecord
-          position: [0, 0]
           scheduling_period: '1 min'
           properties:
             record-writer: json-writer
@@ -82,7 +76,6 @@ process_group:
         - id: update
           name: UpdateRecord
           type: org.apache.nifi.processors.standard.UpdateRecord
-          position: [400, 0]
           properties:
             Record Reader: json-reader
             Record Writer: json-writer
@@ -90,7 +83,6 @@ process_group:
         - id: query
           name: QueryRecord
           type: org.apache.nifi.processors.standard.QueryRecord
-          position: [800, 0]
           properties:
             record-reader: json-reader
             record-writer: json-writer
@@ -99,11 +91,9 @@ process_group:
         - id: log_success
           name: LogAttribute (Success)
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [1200, -200]
         - id: log_failure
           name: LogAttribute (Failure)
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [1200, 200]
       connections:
         - name: Generate to Update
           source: generate
@@ -126,7 +116,7 @@ process_group:
           - success
         log_failure:
           - success
-    # Additional child groups (MediumWorkflow, ComplexWorkflow) follow similar patterns.
+    # Additional child groups (MediumWorkflow, ComplexWorkflow, etc.) follow similar patterns.
 ```
 
 **Key rules**
@@ -148,7 +138,7 @@ process_group:
 **Future additions still under design**
 - `parameter_context`
 - `schedule` (concurrency, run duration)
-- `layout` hints (e.g., layered grid spacing) to guide auto-positioning while keeping overrides optional.
+- Default auto-layout arranges child process groups in a grid (derived from the group count) and spaces processors horizontally when positions are omitted; explicit positions remain optional overrides.
 
 The default `flows/NiFi_Flow.yaml` currently provisions six child groups (TrivialFlow, SimpleWorkflow, MediumWorkflow, ComplexWorkflow, NestedWorkflow, NestedPortsWorkflow). The `NestedWorkflow` example demonstrates a process group that
 contains a nested `process_groups` entry (`SubFunction`) for sub-flow logic. Single-flow specs—
@@ -320,6 +310,7 @@ Error handling:
    NIFI_USERNAME="admin"
    NIFI_PASSWORD="secret"
    ```
+<!-- You may need to change into the automation directory before running the following commands. -->
 3. **Standard deployment pipeline**:
    ```bash
    # Purge, provision manifest services, deploy default flow

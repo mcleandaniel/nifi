@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
@@ -25,6 +26,7 @@ class ProcessorSpec:
     properties: Dict[str, str]
     scheduling_strategy: Optional[str] = None
     scheduling_period: Optional[str] = None
+    explicit_position: bool = False
 
 
 @dataclass
@@ -42,6 +44,7 @@ class PortSpec:
     position: Tuple[float, float]
     allow_remote: bool = False
     comments: Optional[str] = None
+    explicit_position: bool = False
 
 
 @dataclass
@@ -54,6 +57,7 @@ class ProcessGroupSpec:
     child_groups: List["ProcessGroupSpec"] = field(default_factory=list)
     input_ports: List[PortSpec] = field(default_factory=list)
     output_ports: List[PortSpec] = field(default_factory=list)
+    explicit_position: bool = False
 
 
 @dataclass
@@ -283,7 +287,8 @@ def _parse_process_group(
     name = data.get("name")
     if not name:
         raise FlowDeploymentError("process_group entries must include 'name'")
-    position = _ensure_position(data.get("position"), fallback_x + index * 600.0)
+    position_raw = data.get("position")
+    position = _ensure_position(position_raw, fallback_x + index * 600.0)
 
     processors_data = data.get("processors") or []
     processors: List[ProcessorSpec] = []
@@ -311,6 +316,7 @@ def _parse_process_group(
             scheduling_period=_normalize_property_value(raw_schedule_period)
             if raw_schedule_period is not None
             else None,
+            explicit_position=bool(item.get("position")),
         )
         if not proc.type:
             raise FlowDeploymentError(f"Processor '{key}' in group '{name}' missing 'type'")
@@ -334,6 +340,7 @@ def _parse_process_group(
             position=_ensure_position(item.get("position"), idx * 400.0),
             allow_remote=bool(item.get("allow_remote", False)),
             comments=item.get("comments"),
+            explicit_position=bool(item.get("position")),
         )
         input_ports.append(port)
 
@@ -355,6 +362,7 @@ def _parse_process_group(
             position=_ensure_position(item.get("position"), idx * 400.0),
             allow_remote=bool(item.get("allow_remote", False)),
             comments=item.get("comments"),
+            explicit_position=bool(item.get("position")),
         )
         output_ports.append(port)
 
@@ -363,6 +371,8 @@ def _parse_process_group(
         if not isinstance(child, Mapping):
             raise FlowDeploymentError("process_groups entries must be mappings")
         child_groups.append(_parse_process_group(child, fallback_x=0.0, index=child_idx))
+
+    _layout_child_groups(child_groups)
 
     for child in child_groups:
         for port in child.input_ports:
@@ -406,6 +416,7 @@ def _parse_process_group(
         child_groups=child_groups,
         input_ports=input_ports,
         output_ports=output_ports,
+        explicit_position=bool(position_raw),
     )
 
 
@@ -424,6 +435,21 @@ def load_flow_spec(path: Path) -> FlowSpec:
     if root_group.name != "NiFi Flow":
         raise FlowDeploymentError("Root process group must be named 'NiFi Flow'")
     return FlowSpec(root_group=root_group)
+
+
+def _layout_child_groups(groups: List[ProcessGroupSpec]) -> None:
+    if not groups:
+        return
+    count = len(groups)
+    columns = max(1, math.ceil(math.sqrt(count)))
+    spacing_x = 600.0
+    spacing_y = 400.0
+    for idx, group in enumerate(groups):
+        if group.explicit_position:
+            continue
+        row = idx // columns
+        col = idx % columns
+        group.position = (col * spacing_x, row * spacing_y)
 
 
 class FlowDeployer:

@@ -8,7 +8,7 @@ if [ "$#" -gt 0 ]; then
   specs=$(printf "%s," "$@")
   specs=${specs%,}
 else
-  specs="flows/NiFi_Flow.yaml"
+  specs="automation/flows/NiFi_Flow.yaml"
 fi
 
 export NIFI_FLOW_SPECS="$specs"
