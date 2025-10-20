@@ -19,5 +19,4 @@ Explain provenance repository formats, configuration knobs, and how operators ba
 Data Provenance Storage and Retention
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

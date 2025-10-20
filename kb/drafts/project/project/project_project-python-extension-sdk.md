@@ -19,5 +19,4 @@ Describe how the Py4J bundle enables Python processors and what developers must 
 Python Processor Integration Path
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

@@ -7,7 +7,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    yaml = None
 
 from .client import NiFiClient
 from .diagnostics import count_processor_states
@@ -407,6 +410,8 @@ def _parse_process_group(
 
 
 def load_flow_spec(path: Path) -> FlowSpec:
+    if yaml is None:
+        raise FlowDeploymentError("PyYAML is required to load flow specifications")
     data = yaml.safe_load(path.read_text())
     if not isinstance(data, Mapping):
         raise FlowDeploymentError("Flow specification must be a mapping")

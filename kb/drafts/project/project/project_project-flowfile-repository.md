@@ -19,5 +19,4 @@ Summarize FlowFile storage design, serialization formats, and recovery behavior 
 FlowFile Repository Architecture
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

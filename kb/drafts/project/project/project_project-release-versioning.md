@@ -20,5 +20,4 @@ Summarize release version strategy, manifest generation, and assembly validation
 Release Versioning and Packaging Process
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

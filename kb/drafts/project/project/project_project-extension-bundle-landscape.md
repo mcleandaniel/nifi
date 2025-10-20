@@ -19,5 +19,4 @@ Inventory the published processor, service, and reporting bundles and how they a
 NiFi Extension Bundle Catalog
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

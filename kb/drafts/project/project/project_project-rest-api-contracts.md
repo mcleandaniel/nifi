@@ -19,5 +19,4 @@ Catalog the primary REST resources, DTOs, and versioning conventions that NiFi e
 REST API Contract Surface
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

@@ -19,5 +19,4 @@ Summarize how NiFi integrates with NiFi Registry for versioned flow promotion, c
 Registry-Centered Lifecycle Management
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

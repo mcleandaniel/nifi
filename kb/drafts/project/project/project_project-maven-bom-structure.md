@@ -20,5 +20,4 @@ Explain how the BOM modules control dependency versions and align extension buil
 Bill of Materials and Dependency Governance
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

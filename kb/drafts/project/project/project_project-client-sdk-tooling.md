@@ -19,5 +19,4 @@ Explain how the project packages reusable HTTP clients and swagger integrations 
 Client SDK and Web Client Utilities
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

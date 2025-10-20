@@ -19,5 +19,4 @@ Detail how Site-to-Site transports data between NiFi instances and external agen
 Site-to-Site Data Movement
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

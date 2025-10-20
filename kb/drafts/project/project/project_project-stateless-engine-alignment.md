@@ -19,5 +19,4 @@ Summarize the stateless engine modules and how they align with core NiFi deploym
 NiFi Stateless Engine Strategy
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

@@ -19,5 +19,4 @@ Summarize official container images, build workflows, and runtime configuration 
 Docker and Container Delivery
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.

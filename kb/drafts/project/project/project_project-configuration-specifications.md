@@ -19,5 +19,4 @@ Capture shared configuration conventions, component catalogs, and operator guida
 Configuration Standards and Guidance
 
 ---
-
 Provide a comprehensive, evidence-based response using the context above.
