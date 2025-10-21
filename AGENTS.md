@@ -4,3 +4,12 @@
 - Do **not** ask the user to set shell variables manually when you can do it for them. Either hardcode the values (when appropriate) or include the `export`/`source`/`TOKEN=…` steps in the script or command snippet.
 - If you notice repeated attempts failing, revert to a focused workflow: write a small test or utility script, run it step-by-step, and surface deterministic reproduction steps before retrying larger flows.
 - When working under `automation/`, start each session by skimming `automation/README.md` for environment setup hints, then review the relevant docs in `docs/` (controller service notes, flow specs) and `llm-docs/` so you load context before running commands or tests.
+- **Codex context warm-up:** at the start of a Codex CLI session, populate context by emitting the key docs in one block, for example:
+  ```bash
+  cd automation
+  for f in README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
+    printf '\n===== %s =====\n' "$f"
+    cat "$f"
+  done
+  ```
+- **Codex venv note:** Codex shells do not inherit your host virtualenv. After Codex starts, re-activate the project venv with `source automation/.venv/bin/activate` (or inject `PATH`/`VIRTUAL_ENV` when launching Codex) before running Python/pytest.

@@ -58,6 +58,8 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 - Target a specific flow: `automation/scripts/run_integration_suite.sh automation/flows/complex.yaml`
 - Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json`
 - Purge before any deployment/test: `python -m nifi_automation.cli.main purge flow`
+- Virtualenv activation: repo root `source automation/.venv/bin/activate`, or inside `automation/` use `source .venv/bin/activate`.
+- Run tests: repo root `python -m pytest automation/tests -vv -ra --maxfail=1`, or inside `automation/` use `python -m pytest tests -vv -ra --maxfail=1`.
 - Codex tip: when running from a sandboxed Codex session, enable network access first (`codex --sandbox workspace-write -c sandbox_workspace_write.network_access=true`). Without it, even the initial `/access/token` call fails with `[Errno 1] Operation not permitted`, which can masquerade as a purge bug.
 - Quick stop-all (before purge):
   ```bash

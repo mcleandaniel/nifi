@@ -14,6 +14,18 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
 
 ## Quickstart
 > The CLI reads NiFi connection defaults (base URL, username, password) from the repo-root `.env`. Update that file or export environment variables before running the commands below if you need different credentials.
+
+If you are starting a new Codex CLI session, prime the assistant by emitting the core docs first:
+
+```bash
+cd automation
+for f in README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
+  printf '\n==== %s ====\n' "$f"
+  cat "$f"
+done
+```
+
+Then continue with the steps below.
 1. **Create and activate the per-project virtual environment**  
    Always work from inside `automation/` so installs and commands target the same location:
    ```bash
@@ -95,6 +107,30 @@ The integration tests assume NiFi is available at `https://localhost:8443/nifi-a
 - When switching between shells/sessions, check `pwd` first. If you need to run commands from the repo root, prefix them with `cd automation && ...` to keep installs and test runs aligned.
 - If repeated changes keep failing (looping), fall back to the focused workflow: **purge NiFi immediately**, run the standalone controller-service provisioning test, and use the scripted curl commands to inspect the state before attempting broader flow deployments again.
 - When automation encounters an `ENABLING`/`INVALID` controller service (or any state that needs human judgement), stop further mutations and output the minimal curl commands an operator can run locally. Avoid burning time on repeated retries that the operator can resolve faster with direct inspection.
+
+### Virtualenv & Codex cheatsheet
+
+Outside Codex (normal shell)
+- Activate venv
+  - Repo root: `source automation/.venv/bin/activate`
+  - Inside `automation/`: `source .venv/bin/activate`
+- Run tests
+  - Repo root: `python -m pytest automation/tests -vv -ra --maxfail=1`
+  - Inside `automation/`: `python -m pytest tests -vv -ra --maxfail=1`
+- CLI without venv (fallback): `PYTHONPATH=automation/src python -m nifi_automation.cli.main status flow --output json`
+
+Inside Codex
+- Prime context (once per session):
+  ```bash
+  cd automation
+  for f in README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
+    printf '\n==== %s ====\n' "$f"; cat "$f"; done
+  ```
+- Re-activate venv inside Codex: `source automation/.venv/bin/activate` (or `source .venv/bin/activate` from `automation/`)
+- Run tests/CLI as above. Avoid creating a venv or installing inside the sandbox unless needed.
+- Optional: keep caches in-repo if you do use uv/pip in Codex:
+  - `export UV_CACHE_DIR="$PWD/automation/.uv-cache"`
+  - `export PIP_CACHE_DIR="$PWD/automation/.pip-cache"`
 
 CLI options still override configuration at runtime. Settings are also loaded from
 an `.env` file located at the repository root—useful when running commands from
