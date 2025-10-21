@@ -102,6 +102,7 @@ Please review individual project documentation for additional details.
 ### Repository Documentation
 
 - [CLI Refactor Plan](docs/cli-refactor-plan.md) — includes the test checklist (ensure `python -m nifi_automation.cli.main --help` passes so the module entry point stays wired in).
+- Automation Quickstart: see `automation/README.md`. All automation scripts and examples now assume running commands from the repository root (activate `automation/.venv` and reference paths under `automation/...`).
 
 ## Getting Started
 

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT_DIR"
+# Always run from the repository root so relative paths like
+# `automation/flows/NiFi_Flow.yaml` resolve consistently.
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT"
 
-export PYTHONPATH="$ROOT_DIR/automation/src${PYTHONPATH:+:$PYTHONPATH}"
+# Ensure the automation sources are importable when invoking pytest and modules directly
+export PYTHONPATH="$REPO_ROOT/automation/src${PYTHONPATH:+:$PYTHONPATH}"
 
 if [ "$#" -gt 0 ]; then
   specs=$(printf "%s," "$@")
@@ -15,5 +18,6 @@ fi
 
 export NIFI_FLOW_SPECS="$specs"
 
-./.venv/bin/python -m nifi_automation.cli.main purge flow --output json
-.venv/bin/pytest tests/integration/test_live_nifi.py
+# Use the per-project venv under automation/.venv
+automation/.venv/bin/python -m nifi_automation.cli.main purge flow --output json
+automation/.venv/bin/pytest automation/tests/integration/test_live_nifi.py

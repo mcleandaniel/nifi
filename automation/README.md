@@ -5,7 +5,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
 ## Features
 - Authentication via `/access/token` using username/password credentials (Bearer token).
 - Configurable HTTP client built on `httpx` with TLS toggle.
-- Typer-based CLI with subcommands for fetching tokens and viewing the root process group summary.
+- Typer-based CLI: `auth-token`, `flow-summary`, and verb‑target commands (`run`/`status`/`inspect`/`purge`).
 - Settings managed with `pydantic-settings`, including environment variable overrides (`NIFI_BASE_URL`, `NIFI_USERNAME`, `NIFI_PASSWORD`, etc.).
 
 ## Requirements
@@ -15,38 +15,35 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
 ## Quickstart
 > The CLI reads NiFi connection defaults (base URL, username, password) from the repo-root `.env`. Update that file or export environment variables before running the commands below if you need different credentials.
 
-If you are starting a new Codex CLI session, prime the assistant by emitting the core docs first:
+If you are starting a new Codex CLI session, prime the assistant by emitting the core docs first (run from the repo root):
 
 ```bash
-cd automation
-for f in README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
+for f in automation/README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
   printf '\n==== %s ====\n' "$f"
   cat "$f"
 done
 ```
 
 Then continue with the steps below.
-1. **Create and activate the per-project virtual environment**  
-   Always work from inside `automation/` so installs and commands target the same location:
+1. **Create and activate the per-project virtual environment (from repo root)**
    ```bash
-   cd automation
-   uv venv --clear        # creates/refreshes automation/.venv
-   source .venv/bin/activate
+   uv venv automation/.venv --clear   # creates/refreshes automation/.venv
+   source automation/.venv/bin/activate
    ```
 
-2. **Install the package (editable) with dev tooling**  
+2. **Install the package (editable) with dev tooling**
    ```bash
-   uv pip install -e .[dev]
+   uv pip install -e automation/.[dev]
    ```
 
-3. **Configure NiFi connection (via repo-root `.env` or env vars)**  
+3. **Configure NiFi connection (via repo-root `.env` or env vars)**
    ```bash
    export NIFI_BASE_URL="https://localhost:8443/nifi-api"
    export NIFI_USERNAME="admin"
    export NIFI_PASSWORD="changeme"
    ```
 
-4. **Run the CLI** (TLS verification disabled by default; add `--verify-ssl` to enable):
+4. **Run the CLI (from repo root)** (TLS verification disabled by default; add `--verify-ssl` to enable):
   ```bash
   nifi-automation auth-token
   nifi-automation flow-summary
@@ -55,15 +52,15 @@ Then continue with the steps below.
   nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
   ```
 
-5. **Run unit tests**  
+5. **Run unit tests (from repo root)**
   ```bash
-  pytest
+  python -m pytest automation/tests -vv -ra --maxfail=1
   ```
   *(Integration coverage runs separately via the suite described below.)*
 
-6. **Run integration suite** *(optional)*  
+6. **Run integration suite** *(optional, from repo root)*
   ```bash
-  scripts/run_integration_suite.sh
+  bash automation/scripts/run_integration_suite.sh
   ```
   This script purges NiFi once (via the CLI), deploys `automation/flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
   services, and fails immediately if NiFi reports any invalid processors. Leave NiFi untouched after the run so the
@@ -96,15 +93,14 @@ The integration tests assume NiFi is available at `https://localhost:8443/nifi-a
   Run the purge script or `nifi-automation purge-root` (once available) before provisioning
   controller services or deploying flows. Skipping this step leaves stale controller
   state behind and wastes cycles chasing ENABLING/INVALID loops.
-- Always run installs and commands from inside `automation/` so they target `automation/.venv`.
-- If Codex (or another tool) runs from the repo root, change into `automation/` before invoking `uv` or `pytest`:
+- Run installs and commands from the **repo root**. Activate `automation/.venv` and reference files under `automation/...`.
+- Use root-run equivalents for tooling:
   ```bash
-  cd automation
-  uv pip install -e .[dev]
-  uv run -m pytest
+  uv pip install -e automation/.[dev]
+  python -m pytest automation/tests -vv -ra --maxfail=1
   ```
 - Avoid mixing the repo-root `.venv` with `automation/.venv`; choose one and stick with it. The project defaults to `automation/.venv`.
-- When switching between shells/sessions, check `pwd` first. If you need to run commands from the repo root, prefix them with `cd automation && ...` to keep installs and test runs aligned.
+- When switching between shells/sessions, check `pwd` first. Prefer running from repo root so relative paths like `automation/flows/...` resolve consistently.
 - If repeated changes keep failing (looping), fall back to the focused workflow: **purge NiFi immediately**, run the standalone controller-service provisioning test, and use the scripted curl commands to inspect the state before attempting broader flow deployments again.
 - When automation encounters an `ENABLING`/`INVALID` controller service (or any state that needs human judgement), stop further mutations and output the minimal curl commands an operator can run locally. Avoid burning time on repeated retries that the operator can resolve faster with direct inspection.
 
@@ -120,13 +116,12 @@ Outside Codex (normal shell)
 - CLI without venv (fallback): `PYTHONPATH=automation/src python -m nifi_automation.cli.main status flow --output json`
 
 Inside Codex
-- Prime context (once per session):
+- Prime context (once per session, from repo root):
   ```bash
-  cd automation
-  for f in README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
+  for f in automation/README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
     printf '\n==== %s ====\n' "$f"; cat "$f"; done
   ```
-- Re-activate venv inside Codex: `source automation/.venv/bin/activate` (or `source .venv/bin/activate` from `automation/`)
+- Re-activate venv inside Codex: `source automation/.venv/bin/activate`
 - Run tests/CLI as above. Avoid creating a venv or installing inside the sandbox unless needed.
 - Optional: keep caches in-repo if you do use uv/pip in Codex:
   - `export UV_CACHE_DIR="$PWD/automation/.uv-cache"`
@@ -142,17 +137,16 @@ nifi-automation auth-token \
   --password changeme
 ```
 
-## Clean Deploy Workflow
+## Clean Deploy Workflow (root-run)
 
 When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`), follow this sequence:
 
 1. **Purge** – clear the root process group and controller services before every deploy:
    ```bash
-   cd automation
-   set -a; source ../.env; set +a
+   set -a; source .env; set +a
    python -m nifi_automation.cli.main purge flow --output json
    ```
-2. **Deploy** – call `python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` *or* run the convenience script:
+2. **Deploy** – run from repo root using the same venv:
    ```bash
    python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
    ```
@@ -179,15 +173,13 @@ If the deploy fails because services already exist, purge again—`ensure_root_c
 To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
 
 ```bash
-cd automation
-scripts/run_integration_suite.sh automation/flows/medium.yaml
+bash automation/scripts/run_integration_suite.sh automation/flows/medium.yaml
 ```
 
 For multiple flows:
 
 ```bash
-cd automation
-scripts/run_integration_suite.sh automation/flows/medium.yaml automation/flows/complex.yaml
+bash automation/scripts/run_integration_suite.sh automation/flows/medium.yaml automation/flows/complex.yaml
 ```
 
 Multiple specs can be supplied (comma-separated or space-separated); the script sets `NIFI_FLOW_SPECS` for the tests.

@@ -7,8 +7,8 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 | Layer | Artefacts | Purpose | Status (19 Oct 2025) |
 | --- | --- | --- | --- |
 | **Unit – automation Python** | `pytest`, `automation/tests/test_*.py` | Validate manifest parsing, controller-service planning, client auth/config, and flow-builder helpers. | Passing locally (`.venv/bin/pytest`). |
-| **Integration – default flow** | `automation/scripts/run_integration_suite.sh` (deploys `automation/flows/NiFi_Flow.yaml`) | Purges once, provisions root controller services, deploys all six child flows (Trivial, Simple, Medium, Complex, Nested, NestedPorts) directly under NiFi’s built-in `NiFi Flow` root PG, and asserts processors/ports/services are valid. | Blocked: purge script hits HTTP 409 while deleting ports with queued FlowFiles. Requires port cleanup fix before suite is green. |
-| **Integration – targeted flow** | `automation/scripts/run_integration_suite.sh automation/flows/<spec>.yaml` | Run the same deployment/assertion pipeline for an individual flow when isolating defects. | On-demand; same purge-first requirement as the default run. |
+| **Integration – default flow** | `automation/scripts/run_integration_suite.sh` (run from repo root; deploys `automation/flows/NiFi_Flow.yaml`) | Purges once, provisions root controller services, deploys all six child flows (Trivial, Simple, Medium, Complex, Nested, NestedPorts) directly under NiFi’s built-in `NiFi Flow` root PG, and asserts processors/ports/services are valid. | Blocked: purge script hits HTTP 409 while deleting ports with queued FlowFiles. Requires port cleanup fix before suite is green. |
+| **Integration – targeted flow** | `automation/scripts/run_integration_suite.sh automation/flows/<spec>.yaml` (run from repo root) | Run the same deployment/assertion pipeline for an individual flow when isolating defects. | On-demand; same purge-first requirement as the default run. |
 | **Diagnostics** | `python -m nifi_automation.cli.main inspect flow --output json` | Surfaces invalid processors/ports and their validation errors; exits non-zero if anything is invalid. | Invoked at the end of the integration test; can be run standalone for triage. |
 | **Environment preparation** | `python -m nifi_automation.cli.main purge flow` | Drops queued FlowFiles, deletes connections/processors/ports/child PGs, and removes root-level controller services. | Must be executed before any deployment or test batch. Never run it after tests; preserve failing state for analysis. |
 
@@ -53,13 +53,13 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 
 ## 7. Usage Cheatsheet
 
-<!-- You may need to change into the automation directory before running the following commands. -->
+<!-- All commands assume the repository root as CWD. -->
 - Run full suite: `automation/scripts/run_integration_suite.sh`
 - Target a specific flow: `automation/scripts/run_integration_suite.sh automation/flows/complex.yaml`
 - Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json`
 - Purge before any deployment/test: `python -m nifi_automation.cli.main purge flow`
-- Virtualenv activation: repo root `source automation/.venv/bin/activate`, or inside `automation/` use `source .venv/bin/activate`.
-- Run tests: repo root `python -m pytest automation/tests -vv -ra --maxfail=1`, or inside `automation/` use `python -m pytest tests -vv -ra --maxfail=1`.
+- Virtualenv activation: repo root `source automation/.venv/bin/activate`.
+- Run tests: repo root `python -m pytest automation/tests -vv -ra --maxfail=1`.
 - Codex tip: when running from a sandboxed Codex session, enable network access first (`codex --sandbox workspace-write -c sandbox_workspace_write.network_access=true`). Without it, even the initial `/access/token` call fails with `[Errno 1] Operation not permitted`, which can masquerade as a purge bug.
 - Quick stop-all (before purge):
   ```bash

@@ -67,8 +67,7 @@ deployments. For deeper diagnostics, `automation/scripts/provision_json_services
 JsonTreeReader/JsonRecordSetWriter services and dump their state; however, the standard
 `python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` command now provisions services automatically when the instance is clean.
 ```bash
-cd automation
-.venv/bin/python scripts/provision_json_services.py
+automation/.venv/bin/python automation/scripts/provision_json_services.py
 ```
 For manual inspection via `curl`, load the `.env` defaults and fetch a token:
 ```bash

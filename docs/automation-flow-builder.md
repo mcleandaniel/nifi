@@ -297,12 +297,11 @@ Error handling:
 - Connection creation now includes required queue/backpressure fields to avoid 500 responses.
 
 ## 7. Usage Workflow
-1. **Environment setup** (from repo root):
+1. **Environment setup (from repo root):**
    ```bash
-   cd automation
-   uv venv --clear
-   source .venv/bin/activate
-   uv pip install -e .[dev]
+   uv venv automation/.venv --clear
+   source automation/.venv/bin/activate
+   uv pip install -e automation/.[dev]
    ```
 2. **Configure `.env`** (repo root) so the scripts can source credentials automatically:
    ```
@@ -318,7 +317,7 @@ Error handling:
   ```
   - Add additional specs to the command to deploy targeted flows (e.g., `automation/flows/simple.yaml`).
   - Use `--dry-run` for a plan-only view without mutating NiFi.
-4. **Integration tests**:
+4. **Integration tests (from repo root):**
   ```bash
   automation/scripts/run_integration_suite.sh           # CLI purge + pytest + diagnostics
   automation/scripts/run_integration_suite.sh automation/flows/complex.yaml  # targeted flow
@@ -355,7 +354,7 @@ Error handling:
 
 ## 11. Tooling Entry Points
 - `python -m nifi_automation.cli.main run flow <spec>` – purge (once) then deploy + start processors.
-- `automation/scripts/run_integration_suite.sh` – convenience wrapper that purges via the CLI, sets flow list, runs pytest integration suite, and captures diagnostics.
+- `automation/scripts/run_integration_suite.sh` – convenience wrapper that purges via the CLI, sets flow list, runs pytest integration suite, and captures diagnostics. Run it from the repo root.
 - `python -m nifi_automation.cli.main inspect flow` – emits JSON of invalid processors/ports and exits non-zero if any exist.
 
 ## 12. References
