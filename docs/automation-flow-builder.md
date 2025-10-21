@@ -223,7 +223,7 @@ flowchart TD
     Executor --> NiFiREST[NiFi REST API]
 ```
 
-- **CLI**: Typer-based commands (`auth-token`, `flow-summary`, `deploy-flow`); reads `.env` for base URL & credentials.
+- **CLI**: Typer-based commands (`auth-token`, `flow-summary`, `run flow`, `status flow`, `inspect flow`, etc.); reads `.env` for base URL & credentials.
 - **Spec Parser** (`flow_builder.py` – `load_flow_spec`):
   - Parses YAML into dataclasses (`FlowSpec`, `ProcessorSpec`, `ConnectionSpec`).
   - Validates presence of required fields (`id`, `type`, valid references).

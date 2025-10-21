@@ -32,6 +32,6 @@ This log captures key decisions, ideas, and open questions as the automation evo
 ---
 ## 2025-10-13
 - **Flow spec foundation**: Established initial YAML structure (`process_group`, `processors`, `connections`, `auto_terminate`). Positions default to `idx * 400` horizontal spacing; future layout engine will improve this.
-- **CLI behaviors**: `deploy-flow` deletes existing process group with same name prior to reconstruction for idempotent runs. Prompts for credentials only when not provided via `.env`.
+- **CLI behaviors** *(legacy command name `deploy-flow`; superseded by `run flow` in 2025-10-21 refactor)*: deletes existing process group with same name prior to reconstruction for idempotent runs and prompts for credentials only when not provided via `.env`.
 - **Auto-termination**: Spec supports `auto_terminate` shorthand; deployer applies via REST `PUT /processors/{id}` updates.
 - **REST client updates**: Added helper methods to resolve processor bundles, create processors/connections, and update auto-termination. Connection payloads now include required queue/backpressure defaults to avoid NiFi 500 errors.
