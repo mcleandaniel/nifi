@@ -49,7 +49,7 @@ Then continue with the steps below.
   nifi-automation flow-summary
   python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
   nifi-automation controller-services-report --format markdown
-  nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
+ nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
   ```
 
 5. **Run unit tests (from repo root)**
@@ -158,9 +158,14 @@ When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`),
 If the deploy fails because services already exist, purge again—`ensure_root_controller_services` intentionally refuses to reconcile on a dirty instance.
 
 ## Diagnostics
-- `python -m nifi_automation.cli.main inspect flow --output json` – surfaces invalid processors and ports (with
-  validation errors) and exits non-zero when issues are present. The integration suite invokes the same command
-  after deployment.
+- `python -m nifi_automation.cli.main inspect flow --output json` – structured JSON including:
+  - invalid processors and ports (with validation errors)
+  - processor and process-group bulletins
+  - connection queue snapshots (counts/bytes/percent use)
+  - optional fail-on conditions:
+    - `--fail-on-bulletins` – exit non-zero when bulletins exist
+    - `--queue-count-threshold N` – exit non-zero when any connection has queued FlowFiles >= N
+  The integration suite invokes the same command after deployment.
 
 ## Flow Specifications
 - Declarative specs live under `flows/`. Examples:

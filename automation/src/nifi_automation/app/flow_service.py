@@ -10,7 +10,7 @@ from ..infra import ctrl_adapter, deploy_adapter, diag_adapter, purge_adapter, s
 from .client import open_client
 from .errors import TimeoutError, ValidationError
 from .models import AppConfig, CommandResult, ExitCode
-from .status_rules import rollup_controllers, rollup_flow, rollup_processors
+from .status_rules import rollup_controllers, rollup_flow, rollup_processors, rollup_connections
 
 POLL_INTERVAL = 0.5
 
@@ -175,11 +175,29 @@ def purge_flow(*, config: AppConfig) -> CommandResult:
 def status_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
         status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
+        # Attach connection rollup
+        connections = status_adapter.fetch_connections(client)["items"]
+        conn_roll = rollup_connections(connections)
+        details["connections"] = {"counts": conn_roll.counts, "worst": conn_roll.worst}
+        # Optionally fail on bulletins or queue thresholds
+        bulletins_present = any((item.get("bulletins") for item in status_adapter.fetch_processors(client)["items"]))
+        threshold_exceeded = False
+        if config.queue_count_threshold is not None:
+            threshold_exceeded = any(int(c.get("queuedCount", 0)) >= int(config.queue_count_threshold) for c in connections)
+        # queue_bytes_threshold reserved for future; not all endpoints expose exact bytes consistently
     exit_code = ExitCode.VALIDATION if status_token == "INVALID" else ExitCode.SUCCESS
+    # Elevate exit code based on diagnostics flags
+    if exit_code == ExitCode.SUCCESS:
+        if (config.fail_on_bulletins and bulletins_present) or threshold_exceeded:
+            exit_code = ExitCode.VALIDATION
     return CommandResult(
         exit_code=exit_code,
         status_token=status_token,
-        data={"processors": proc_roll.counts, "controllers": ctrl_roll.counts},
+        data={
+            "processors": proc_roll.counts,
+            "controllers": ctrl_roll.counts,
+            "connections": details.get("connections", {}),
+        },
         details=details if exit_code != ExitCode.SUCCESS else {},
     )
 
@@ -187,6 +205,19 @@ def status_flow(*, config: AppConfig) -> CommandResult:
 def inspect_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
         diagnostics = diag_adapter.gather_validation_details(client)
+        # Evaluate optional fail-on conditions
+        bulletins_total = len(diagnostics.get("bulletins", {}).get("processors", [])) + len(
+            diagnostics.get("bulletins", {}).get("process_groups", [])
+        )
+        # queue threshold
+        connections = diagnostics.get("connections", {}).get("blocked_or_nonempty", [])
+        threshold_exceeded = False
+        if config.queue_count_threshold is not None:
+            threshold_exceeded = any(int(c.get("queuedCount", 0)) >= int(config.queue_count_threshold) for c in connections)
+
     total_issues = len(diagnostics.get("invalid_processors", [])) + len(diagnostics.get("invalid_ports", []))
     message = "No invalid components" if total_issues == 0 else f"Found {total_issues} invalid components"
-    return CommandResult(message=message, data=diagnostics)
+    exit_code = ExitCode.SUCCESS
+    if (config.fail_on_bulletins and bulletins_total > 0) or threshold_exceeded:
+        exit_code = ExitCode.VALIDATION
+    return CommandResult(exit_code=exit_code, message=message, data=diagnostics)

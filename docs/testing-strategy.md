@@ -7,13 +7,13 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 | Layer | Artefacts | Purpose | Status (19 Oct 2025) |
 | --- | --- | --- | --- |
 | **Unit – automation Python** | `pytest`, `automation/tests/test_*.py` | Validate manifest parsing, controller-service planning, client auth/config, and flow-builder helpers. | Passing locally (`.venv/bin/pytest`). |
-| **Integration – default flow** | `automation/scripts/run_integration_suite.sh` (run from repo root; deploys `automation/flows/NiFi_Flow.yaml`) | Purges once, provisions root controller services, deploys all six child flows (Trivial, Simple, Medium, Complex, Nested, NestedPorts) directly under NiFi’s built-in `NiFi Flow` root PG, and asserts processors/ports/services are valid. | Blocked: purge script hits HTTP 409 while deleting ports with queued FlowFiles. Requires port cleanup fix before suite is green. |
+| **Integration – default flow** | `automation/scripts/run_integration_suite.sh` (run from repo root; deploys `automation/flows/NiFi_Flow.yaml`) | Purges once, provisions root controller services, deploys all six child flows (Trivial, Simple, Medium, Complex, Nested, NestedPorts) directly under NiFi’s built-in `NiFi Flow` root PG, and asserts processors/ports/services are valid. | Passing locally; purge now drops queues, deletes connections first, and retries port deletion to avoid transient 409s. |
 | **Integration – targeted flow** | `automation/scripts/run_integration_suite.sh automation/flows/<spec>.yaml` (run from repo root) | Run the same deployment/assertion pipeline for an individual flow when isolating defects. | On-demand; same purge-first requirement as the default run. |
 | **Diagnostics** | `python -m nifi_automation.cli.main inspect flow --output json` | Surfaces invalid processors/ports and their validation errors; exits non-zero if anything is invalid. | Invoked at the end of the integration test; can be run standalone for triage. |
 | **Environment preparation** | `python -m nifi_automation.cli.main purge flow` | Drops queued FlowFiles, deletes connections/processors/ports/child PGs, and removes root-level controller services. | Must be executed before any deployment or test batch. Never run it after tests; preserve failing state for analysis. |
 
 ## 3. Execution Workflow
-1. **Assume NiFi is dirty** – before running `python -m nifi_automation.cli.main purge flow`, schedule the root process group to `STOPPED` (via the UI or CLI) so all processors halt cleanly. Once everything reports `STOPPED`, disable the root-level controller services, then run the purge command. The purge step retries queue drops and attempts to delete ports, but see the known issue below when FlowFiles are still transiting ports.
+1. **Assume NiFi is dirty** – before running `python -m nifi_automation.cli.main purge flow`, schedule the root process group to `STOPPED` (via the UI or CLI) so all processors halt cleanly. Once everything reports `STOPPED`, disable the root-level controller services, then run the purge command. The purge drops queued FlowFiles, deletes connections first, and disables/deletes ports with retries to avoid conflicts.
 2. **Provision controller services** – integration tests call `ensure_root_controller_services` as the first step. It aborts if any services already exist, reinforcing the purge-first rule.
 3. **Deploy flow specification(s)** – `deploy_flow_from_file` pushes the YAML spec to the live instance. All specs must present a top-level `process_group.name` of `NiFi Flow`; content is materialised directly into the built-in root PG (no duplicate parent group).
 4. **Assertions** – the test suite checks for:
@@ -24,9 +24,8 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
    - Manifest persistence of controller-service UUIDs without UI display-name keys.
 5. **Diagnostics capture** – on failure, the test stops immediately and leaves NiFi populated so the operator can rerun `python -m nifi_automation.cli.main inspect flow --output json` or manual `curl` reproduction commands. Do **not** purge afterward; the state is evidence.
 
-## 4. Known Issues (19 Oct 2025)
-- CLI purge still encounters HTTP 409 conflicts when deleting input/output ports that have active connections. Root cause: NiFi requires connections to be removed before port deletion completes. Fix is in progress; until resolved, queue-heavy environments may require manual intervention (stop upstream processors, drop queues again, retry command).
-- Integration suite depends on the purge succeeding; until the port deletion bug is fixed, the suite is expected to fail early.
+## 4. Known Issues (updated)
+- Integration suite depends on the purge succeeding; avoid external mutations during purge (e.g., other tools creating connections) to prevent race conditions. If encountered, rerun purge.
 
 ## 5. Gap Analysis
 | Gap | Impact | Recommended Action |
@@ -56,7 +55,7 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 <!-- All commands assume the repository root as CWD. -->
 - Run full suite: `automation/scripts/run_integration_suite.sh`
 - Target a specific flow: `automation/scripts/run_integration_suite.sh automation/flows/complex.yaml`
-- Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json`
+- Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json [--fail-on-bulletins] [--queue-count-threshold N]`
 - Purge before any deployment/test: `python -m nifi_automation.cli.main purge flow`
 - Virtualenv activation: repo root `source automation/.venv/bin/activate`.
 - Run tests: repo root `python -m pytest automation/tests -vv -ra --maxfail=1`.

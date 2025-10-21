@@ -50,17 +50,17 @@ def _collect_invalid_components(
             continue
         if status is None and not errors:
             continue
-            invalid.append(
-                {
-                    "name": component.get("name"),
-                    "id": component.get("id"),
-                    "type": component.get("type"),
-                    "path": "/".join(path),
-                    "validationStatus": status,
-                    "validationErrors": errors,
-                    "bulletins": element.get("bulletins") or [],
-                }
-            )
+        invalid.append(
+            {
+                "name": component.get("name"),
+                "id": component.get("id"),
+                "type": component.get("type"),
+                "path": "/".join(path),
+                "validationStatus": status,
+                "validationErrors": errors,
+                "bulletins": element.get("bulletins") or [],
+            }
+        )
     return invalid
 
 

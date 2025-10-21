@@ -33,6 +33,10 @@ def status(*, config: AppConfig) -> CommandResult:
         connections = status_adapter.fetch_connections(client)["items"]
     rollup = rollup_connections(connections)
     exit_code = ExitCode.VALIDATION if rollup.worst == "BLOCKED" else ExitCode.SUCCESS
+    # Optional fail-on queue count threshold
+    if exit_code == ExitCode.SUCCESS and config.queue_count_threshold is not None:
+        if any(int(c.get("queuedCount", 0)) >= int(config.queue_count_threshold) for c in connections):
+            exit_code = ExitCode.VALIDATION
     return CommandResult(
         exit_code=exit_code,
         status_token=rollup.worst,

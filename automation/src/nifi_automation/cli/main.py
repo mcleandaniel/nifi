@@ -54,6 +54,9 @@ def _build_config(
     output: str,
     verbose: bool,
     dry_run: bool,
+    fail_on_bulletins: bool,
+    queue_count_threshold: Optional[int],
+    queue_bytes_threshold: Optional[int],
 ) -> AppConfig:
     return AppConfig(
         base_url=base_url,
@@ -64,6 +67,9 @@ def _build_config(
         output=output,
         verbose=verbose,
         dry_run=dry_run,
+        fail_on_bulletins=fail_on_bulletins,
+        queue_count_threshold=queue_count_threshold,
+        queue_bytes_threshold=queue_bytes_threshold,
     )
 
 
@@ -122,6 +128,9 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
 @click.option("--dry-run", is_flag=True, help="Plan without mutating NiFi.")
 @click.option("--force", is_flag=True, help="Force queue truncation when truncating connections.")
 @click.option("--max", "max_messages", type=int, default=None, help="Max FlowFiles to drop when truncating.")
+@click.option("--fail-on-bulletins", is_flag=True, help="Treat any NiFi bulletins as a validation failure (non-zero exit).")
+@click.option("--queue-count-threshold", type=int, default=None, help="Fail when any connection queued FlowFile count >= this value.")
+@click.option("--queue-bytes-threshold", type=int, default=None, help="Fail when any connection queued bytes >= this value (optional).")
 def cli_command(
     verb: str,
     target_alias: str,
@@ -136,6 +145,9 @@ def cli_command(
     dry_run: bool,
     force: bool,
     max_messages: Optional[int],
+    fail_on_bulletins: bool,
+    queue_count_threshold: Optional[int],
+    queue_bytes_threshold: Optional[int],
 ) -> None:
     """Primary CLI entry point implementing the verb/target grammar."""
 
@@ -174,6 +186,9 @@ def cli_command(
         output=output.lower(),
         verbose=verbose,
         dry_run=dry_run if key in FLOWFILE_COMMANDS else False,
+        fail_on_bulletins=fail_on_bulletins,
+        queue_count_threshold=queue_count_threshold,
+        queue_bytes_threshold=queue_bytes_threshold,
     )
 
     if config.verbose:
