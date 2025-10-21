@@ -24,10 +24,15 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
    - Manifest persistence of controller-service UUIDs without UI display-name keys.
 5. **Diagnostics capture** – on failure, the test stops immediately and leaves NiFi populated so the operator can rerun `python -m nifi_automation.cli.main inspect flow --output json` or manual `curl` reproduction commands. Do **not** purge afterward; the state is evidence.
 
-## 4. Known Issues (updated)
+## 4. External Flow Tests
+- Location: `automation/tests/flows/<ProcessGroupName>/test_*.py` (e.g., `HttpServerWorkflow`).
+- Behavior: Tests fail if the external endpoint/port is not reachable — the trigger is part of the contract.
+- Integration runner starts processors before executing these tests. Ensure ports in specs are free or adjust as needed.
+
+## 5. Known Issues (updated)
 - Integration suite depends on the purge succeeding; avoid external mutations during purge (e.g., other tools creating connections) to prevent race conditions. If encountered, rerun purge.
 
-## 5. Gap Analysis
+## 6. Gap Analysis
 | Gap | Impact | Recommended Action |
 | --- | --- | --- |
 | No data-level assertions | Structural checks pass even if content is wrong. | Capture representative datasets and assert record counts/schema/metrics post-run. |
@@ -37,7 +42,7 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 | Diagnostics limited to invalid components | Provenance anomalies and bulletins outside the root PG are not asserted. | Extend diagnostics module to query provenance events and NiFi bulletin board entries, failing the run when severe bulletins appear. |
 | Test selection coarse-grained | Every change triggers the full NiFi_Flow deployment. | Build metadata mapping components to specs so CI can target only affected flows. |
 
-## 6. Roadmap
+## 7. Roadmap
 1. **Short term**
    - Fix port deletion sequencing in the purge command so queued ports can be removed reliably.
    - Store diagnostics artefacts (JSON from the CLI `inspect flow` command) alongside test logs.

@@ -117,3 +117,10 @@ This process assumes **no existing controller services** are deployed. It should
   1. Purge requirements are enforced by `ensure_root_controller_services`.
   2. Controller services are created directly from the manifest.
   3. Flow components (processors, connections) are created only after services validate successfully.
+
+## HTTP Context Map (for HTTP request/response flows)
+- Processors `HandleHttpRequest` and `HandleHttpResponse` require an `HTTP Context Map` controller service to correlate
+  requests and responses.
+- The automation manifest includes a root-level service (`org.apache.nifi.http.StandardHttpContextMap`) under the key
+  `http-context-map`. Reference it from specs: `HTTP Context Map: http-context-map`.
+- Provisioning enables the service before HTTP processors are created, ensuring they validate immediately.

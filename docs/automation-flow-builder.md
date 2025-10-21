@@ -329,7 +329,13 @@ Error handling:
 6. **Promotion to aggregate**:
    - After a new flow spec deploys cleanly and passes layout checks, append its process group to `automation/flows/NiFi_Flow.yaml`.
    - Keep the `description` text in YAML and the `nifidesc` block in `automation/flows/test-workflow-suite.md` in sync (use the sync script).
-7. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
+7. **Layout heuristics (default)**:
+   - Child process groups: grid layout with a left gutter to avoid collisions with parent-level processors.
+   - Routers (processors with ≥2 outgoing relationships): centered; direct sinks stacked vertically to the right; a single predecessor placed one column to the left.
+   - Ports: input ports placed along a left gutter; output ports along a right gutter.
+   - Chain/grid fallback: remaining processors placed left→right toward placed nodes; any still-unplaced nodes arranged in a compact grid.
+   - Explicit positions in YAML still override the auto-layout.
+8. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
 
 ## 8. Backlog & Enhancements
 - **Spec validation**: Move ad-hoc checks into typed models (likely `pydantic`) so invalid specs fail before REST calls.

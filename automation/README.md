@@ -177,6 +177,25 @@ Descriptions & doc sync
 - Keep `automation/flows/test-workflow-suite.md` in sync with the YAML descriptions. When you edit one, copy the description text verbatim into the other in the same PR to avoid drift.
 - Use two subsections in both places: “Overview” (plain English) and “Technical” (processors, relationships, advanced behavior).
 
+Doc as source-of-truth (nifidesc) and sync tool
+- Preferred workflow: write/update the description once in `automation/flows/test-workflow-suite.md` using a fenced block:
+  
+  ```
+  ```nifidesc
+  name: MyWorkflow
+  Overview: …
+  Technical: …
+  ```
+  ```
+  
+- Then project the description into YAML (single specs and aggregate) with:
+  
+  ```bash
+  python automation/scripts/sync_descriptions.py    # use --dry-run to preview
+  ```
+  
+- The integration tests enforce that YAML descriptions match the doc blocks.
+
 Aggregate promotion rule (must-do)
 - After a new flow spec (e.g., `automation/flows/my_flow.yaml`) deploys cleanly on its own and passes layout/validation checks, you must add it to the aggregate `automation/flows/NiFi_Flow.yaml` in the same PR.
 - Do not leave standalone specs orphaned. The aggregate is the canonical end-to-end deploy used by the integration suite and operators.
@@ -184,6 +203,11 @@ Aggregate promotion rule (must-do)
   - Dry-run and live deploy of the single spec succeed.
   - `run_integration_suite.sh` passes with the existing aggregate.
   - Update the aggregate by appending the new PG section; update docs if needed.
+
+External flow tests
+- Place external-trigger tests under `automation/tests/flows/<ProcessGroupName>/test_*.py` (e.g., `HttpServerWorkflow`).
+- Tests must fail if the endpoint/port is not reachable; the trigger is part of the flow’s contract.
+- The integration runner executes these after deploying the aggregate and starting processors.
 
 To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
 
