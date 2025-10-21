@@ -20,5 +20,7 @@ def test_load_sample_flow_spec() -> None:
     child_names = [child.name for child in spec.root_group.child_groups]
     assert "TrivialFlow" in child_names
     first_child = spec.root_group.child_groups[0]
-    assert first_child.position == (0.0, 0.0)
+    # Position is computed by the layout engine; it should be a 2-tuple of floats
+    assert isinstance(first_child.position, tuple) and len(first_child.position) == 2
+    assert all(isinstance(v, float) for v in first_child.position)
     assert first_child.processors[0].name == "GenerateFlowFile"

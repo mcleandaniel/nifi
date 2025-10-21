@@ -1,25 +1,20 @@
 process_group:
   name: NiFi Flow
-  position: [0, 0]
   process_groups:
     - name: NestedWorkflow
-      position: [0, 0]
       processors: []
       process_groups:
         - name: SubFunction
-          position: [0, 0]
           processors:
             - id: nested-sub-generate
               name: Generate FlowFile (Sub)
               type: org.apache.nifi.processors.standard.GenerateFlowFile
-              position: [0, 0]
               scheduling_period: '1 min'
               properties:
                 Batch Size: "1"
             - id: nested-sub-log
               name: LogAttribute (Sub)
               type: org.apache.nifi.processors.standard.LogAttribute
-              position: [400, 0]
           connections:
             - name: Sub Generate to Log
               source: nested-sub-generate

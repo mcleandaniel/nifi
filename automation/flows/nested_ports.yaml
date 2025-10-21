@@ -1,20 +1,11 @@
 process_group:
   name: NiFi Flow
-  position:
-  - 0
-  - 0
   process_groups:
   - name: NestedPortsWorkflow
-    position:
-    - 0
-    - 0
     processors:
     - id: nested-source
       name: Nested Source
       type: org.apache.nifi.processors.standard.GenerateFlowFile
-      position:
-      - 0
-      - 0
       scheduling_period: '1 min'
       properties:
         Batch Size: '1'
@@ -23,33 +14,18 @@ process_group:
     - id: nested-result-log
       name: Nested Result Logger
       type: org.apache.nifi.processors.standard.LogAttribute
-      position:
-      - 800
-      - 0
     process_groups:
     - name: NestedPortsSubflow
-      position:
-      - 400
-      - 0
       input_ports:
       - id: nested-sub-in
         name: Nested Sub In
-        position:
-        - 0
-        - -100
       output_ports:
       - id: nested-sub-out
         name: Nested Sub Out
-        position:
-        - 300
-        - -100
       processors:
       - id: nested-sub-log
         name: LogAttribute (Nested Sub)
         type: org.apache.nifi.processors.standard.LogAttribute
-        position:
-        - 150
-        - 0
       connections:
       - name: Sub In to Log
         source: nested-sub-in

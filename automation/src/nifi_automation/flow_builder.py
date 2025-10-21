@@ -22,7 +22,7 @@ class ProcessorSpec:
     key: str
     name: str
     type: str
-    position: Tuple[float, float]
+    position: Optional[Tuple[float, float]]
     properties: Dict[str, str]
     scheduling_strategy: Optional[str] = None
     scheduling_period: Optional[str] = None
@@ -41,7 +41,7 @@ class ConnectionSpec:
 class PortSpec:
     key: str
     name: str
-    position: Tuple[float, float]
+    position: Optional[Tuple[float, float]]
     allow_remote: bool = False
     comments: Optional[str] = None
     explicit_position: bool = False
@@ -50,7 +50,7 @@ class PortSpec:
 @dataclass
 class ProcessGroupSpec:
     name: str
-    position: Tuple[float, float]
+    position: Optional[Tuple[float, float]]
     processors: List[ProcessorSpec] = field(default_factory=list)
     connections: List[ConnectionSpec] = field(default_factory=list)
     auto_terminate: Dict[str, List[str]] = field(default_factory=dict)
@@ -86,9 +86,9 @@ class FlowDeploymentError(RuntimeError):
     """Raised when a flow specification cannot be deployed."""
 
 
-def _ensure_position(raw: Optional[Iterable[float]], fallback_x: float) -> Tuple[float, float]:
+def _ensure_position(raw: Optional[Iterable[float]]) -> Optional[Tuple[float, float]]:
     if raw is None:
-        return float(fallback_x), 0.0
+        return None
     coords = list(raw)
     if len(coords) != 2:
         raise FlowDeploymentError(f"Invalid position coordinates: {raw}")
@@ -280,7 +280,6 @@ def compute_auto_terminate_relationships(
 
 def _parse_process_group(
     data: Mapping[str, Any],
-    fallback_x: float,
     *,
     index: int = 0,
 ) -> ProcessGroupSpec:
@@ -288,7 +287,7 @@ def _parse_process_group(
     if not name:
         raise FlowDeploymentError("process_group entries must include 'name'")
     position_raw = data.get("position")
-    position = _ensure_position(position_raw, fallback_x + index * 600.0)
+    position = _ensure_position(position_raw)
 
     processors_data = data.get("processors") or []
     processors: List[ProcessorSpec] = []
@@ -310,7 +309,7 @@ def _parse_process_group(
             key=key,
             name=item.get("name", key),
             type=item.get("type"),
-            position=_ensure_position(item.get("position"), idx * 400.0),
+            position=_ensure_position(item.get("position")),
             properties=item.get("properties") or {},
             scheduling_strategy=item.get("scheduling_strategy") or item.get("schedulingStrategy"),
             scheduling_period=_normalize_property_value(raw_schedule_period)
@@ -337,7 +336,7 @@ def _parse_process_group(
         port = PortSpec(
             key=key,
             name=item.get("name", key),
-            position=_ensure_position(item.get("position"), idx * 400.0),
+            position=_ensure_position(item.get("position")),
             allow_remote=bool(item.get("allow_remote", False)),
             comments=item.get("comments"),
             explicit_position=bool(item.get("position")),
@@ -359,7 +358,7 @@ def _parse_process_group(
         port = PortSpec(
             key=key,
             name=item.get("name", key),
-            position=_ensure_position(item.get("position"), idx * 400.0),
+            position=_ensure_position(item.get("position")),
             allow_remote=bool(item.get("allow_remote", False)),
             comments=item.get("comments"),
             explicit_position=bool(item.get("position")),
@@ -370,7 +369,7 @@ def _parse_process_group(
     for child_idx, child in enumerate(data.get("process_groups") or []):
         if not isinstance(child, Mapping):
             raise FlowDeploymentError("process_groups entries must be mappings")
-        child_groups.append(_parse_process_group(child, fallback_x=0.0, index=child_idx))
+        child_groups.append(_parse_process_group(child, index=child_idx))
 
     _layout_child_groups(child_groups)
 
@@ -431,7 +430,7 @@ def load_flow_spec(path: Path) -> FlowSpec:
     if not isinstance(pg_info, Mapping):
         raise FlowDeploymentError("Top-level 'process_group' is required")
 
-    root_group = _parse_process_group(pg_info, fallback_x=0.0)
+    root_group = _parse_process_group(pg_info)
     if root_group.name != "NiFi Flow":
         raise FlowDeploymentError("Root process group must be named 'NiFi Flow'")
     return FlowSpec(root_group=root_group)
@@ -444,12 +443,142 @@ def _layout_child_groups(groups: List[ProcessGroupSpec]) -> None:
     columns = max(1, math.ceil(math.sqrt(count)))
     spacing_x = 600.0
     spacing_y = 400.0
+    # Reserve a left gutter so top-level processors in the same parent group
+    # have space without overlapping the first child group.
+    left_gutter = spacing_x
     for idx, group in enumerate(groups):
         if group.explicit_position:
             continue
         row = idx // columns
         col = idx % columns
-        group.position = (col * spacing_x, row * spacing_y)
+        group.position = (left_gutter + col * spacing_x, row * spacing_y)
+
+
+def _layout_group_components(group: ProcessGroupSpec) -> None:
+    """Compute default positions for processors and ports that did not specify one.
+
+    Heuristics:
+    - Identify branching "router" processors (>=2 outgoing connections) and place them centered.
+    - Place their immediate sink processors in a vertical stack to the right, aligning with the router.
+    - Place a single predecessor (if any) immediately to the left of the router.
+    - Place remaining processors using a left-to-right chain when possible; otherwise a compact grid.
+    - Input ports along a left gutter; output ports along a right gutter.
+    """
+    spacing_x = 400.0
+    spacing_y = 200.0
+
+    # Build processor maps and adjacency limited to processors in this group
+    proc_map: Dict[str, ProcessorSpec] = {p.key: p for p in group.processors}
+    out_edges: Dict[str, List[str]] = {k: [] for k in proc_map}
+    in_edges: Dict[str, List[str]] = {k: [] for k in proc_map}
+    # Map child ports to their owning child group for cross-PG placement hints
+    child_port_to_group: Dict[str, ProcessGroupSpec] = {}
+    for child in group.child_groups:
+        for ip in child.input_ports:
+            child_port_to_group[ip.key] = child
+        for op in child.output_ports:
+            child_port_to_group[op.key] = child
+    # Track already-placed processors
+    placed: Dict[str, Tuple[float, float]] = {}
+
+    def place(key: str, x: float, y: float) -> None:
+        spec = proc_map.get(key)
+        if spec is None or spec.explicit_position:
+            return
+        if spec.position is None:
+            spec.position = (x, y)
+            placed[key] = spec.position
+
+    for conn in group.connections:
+        if conn.source in proc_map and conn.destination in proc_map:
+            out_edges.setdefault(conn.source, []).append(conn.destination)
+            in_edges.setdefault(conn.destination, []).append(conn.source)
+
+    # Place processors relative to child groups when connected via child ports
+    #  - Proc -> child input port: place proc to the left of the child group
+    #  - Child output port -> Proc: place proc to the right of the child group
+    # Stack multiple placements vertically to avoid overlap
+    child_right_counts: Dict[str, int] = {}
+    child_left_counts: Dict[str, int] = {}
+    for conn in group.connections:
+        # Proc -> child input
+        if conn.destination in child_port_to_group and conn.source in proc_map:
+            child = child_port_to_group[conn.destination]
+            child_pos = child.position or (0.0, 0.0)
+            cnt = child_left_counts.get(child.name, 0)
+            y = child_pos[1] + (cnt - 0) * spacing_y
+            place(conn.source, child_pos[0] - spacing_x, y)
+            child_left_counts[child.name] = cnt + 1
+        # child output -> Proc
+        if conn.source in child_port_to_group and conn.destination in proc_map:
+            child = child_port_to_group[conn.source]
+            child_pos = child.position or (0.0, 0.0)
+            cnt = child_right_counts.get(child.name, 0)
+            y = child_pos[1] + (cnt - 0) * spacing_y
+            place(conn.destination, child_pos[0] + spacing_x, y)
+            child_right_counts[child.name] = cnt + 1
+
+    # Identify routers (out-degree >= 2)
+    routers: List[str] = [k for k, outs in out_edges.items() if len(outs) >= 2]
+    base_col = 0
+    for r_idx, router in enumerate(routers):
+        base_x = base_col * (spacing_x * 3)
+        base_col += 1
+        place(router, base_x, 0.0)
+        # Single predecessor to the left (common for Generate/Update -> Router)
+        preds = in_edges.get(router, [])
+        if len(preds) == 1 and preds[0] in proc_map:
+            place(preds[0], base_x - spacing_x, 0.0)
+        # Sinks: vertical stack to the right
+        sinks = sorted(out_edges.get(router, []))
+        n = len(sinks)
+        for i, sink in enumerate(sinks):
+            y_offset = (i - (n - 1) / 2.0) * (spacing_y * 2.0)
+            place(sink, base_x + spacing_x, y_offset)
+
+    # Chain placement for remaining processors not yet placed
+    # Place nodes that feed into already-placed nodes to the left, preserving y when possible
+    changed = True
+    while changed:
+        changed = False
+        for key, spec in proc_map.items():
+            if spec.explicit_position or spec.position is not None:
+                continue
+            # If any child is placed, place this to the left
+            children = out_edges.get(key, [])
+            child_positions = [placed[c] for c in children if c in placed]
+            if child_positions:
+                min_x = min(x for x, _ in child_positions)
+                y = child_positions[0][1]
+                place(key, min_x - spacing_x, y)
+                changed = True
+
+    # Fallback: grid for any still-unplaced processors
+    remaining = [p for p in group.processors if p.position is None or p.explicit_position is False and p.position is None]
+    if remaining:
+        count = len(remaining)
+        cols = max(1, math.ceil(math.sqrt(count)))
+        for idx, proc in enumerate(remaining):
+            row = idx // cols
+            col = idx % cols
+            place(proc.key, col * spacing_x, row * spacing_y)
+
+    # Layout input ports along a left gutter
+    missing_in = [p for p in group.input_ports if not p.explicit_position or p.position is None]
+    for idx, port in enumerate(missing_in):
+        if port.position is None:
+            port.position = (-200.0, idx * 200.0)
+
+    # Layout output ports along a right gutter relative to processor spread
+    max_x = 0.0
+    for p in group.processors:
+        if p.position is not None:
+            max_x = max(max_x, p.position[0])
+    right_x = max_x + 200.0
+    missing_out = [p for p in group.output_ports if not p.explicit_position or p.position is None]
+    for idx, port in enumerate(missing_out):
+        if port.position is None:
+            port.position = (right_x, idx * 200.0)
 
 
 class FlowDeployer:
@@ -577,6 +706,8 @@ class FlowDeployer:
     def _deploy_group_contents(
         self, parent_pg_id: str, group_spec: ProcessGroupSpec
     ) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+        # Compute default layout for components without explicit positions
+        _layout_group_components(group_spec)
         input_port_id_map: Dict[str, Tuple[str, str]] = {}
         for port in group_spec.input_ports:
             created = self.client.create_input_port(

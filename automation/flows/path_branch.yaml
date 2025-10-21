@@ -1,14 +1,11 @@
 process_group:
   name: NiFi Flow
-  position: [0, 0]
   process_groups:
     - name: PathBranchWorkflow
-      position: [0, 0]
       processors:
         - id: generate
           name: Generate FlowFile (with route)
           type: org.apache.nifi.processors.standard.GenerateFlowFile
-          position: [0, 0]
           scheduling_period: '1 min'
           properties:
             Batch Size: "1"
@@ -18,22 +15,18 @@ process_group:
         - id: route
           name: Route On Attribute (path)
           type: org.apache.nifi.processors.standard.RouteOnAttribute
-          position: [400, 0]
           properties:
             east: "${route:equals('east')}"
             west: "${route:equals('west')}"
         - id: log_east
           name: LogAttribute (east)
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [800, -200]
         - id: log_west
           name: LogAttribute (west)
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [800, 200]
         - id: log_unmatched
           name: LogAttribute (unmatched)
           type: org.apache.nifi.processors.standard.LogAttribute
-          position: [800, 0]
       connections:
         - name: Generate to Route
           source: generate
