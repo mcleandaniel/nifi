@@ -55,7 +55,3 @@ class AppConfig:
     output: str
     verbose: bool
     dry_run: bool = False
-    # Diagnostics+ options
-    fail_on_bulletins: bool = False
-    queue_count_threshold: Optional[int] = None
-    queue_bytes_threshold: Optional[int] = None

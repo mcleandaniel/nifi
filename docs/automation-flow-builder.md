@@ -324,8 +324,7 @@ Error handling:
   ```
 5. **Diagnostics-only pass**:
   ```bash
-  python -m nifi_automation.cli.main inspect flow --output json \
-    --fail-on-bulletins --queue-count-threshold 10
+  python -m nifi_automation.cli.main inspect flow --output json
   ```
 6. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
 

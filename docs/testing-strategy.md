@@ -55,7 +55,7 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 <!-- All commands assume the repository root as CWD. -->
 - Run full suite: `automation/scripts/run_integration_suite.sh`
 - Target a specific flow: `automation/scripts/run_integration_suite.sh automation/flows/complex.yaml`
-- Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json [--fail-on-bulletins] [--queue-count-threshold N]`
+- Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json`
 - Purge before any deployment/test: `python -m nifi_automation.cli.main purge flow`
 - Virtualenv activation: repo root `source automation/.venv/bin/activate`.
 - Run tests: repo root `python -m pytest automation/tests -vv -ra --maxfail=1`.

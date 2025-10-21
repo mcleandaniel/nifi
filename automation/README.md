@@ -162,9 +162,6 @@ If the deploy fails because services already exist, purge again—`ensure_root_c
   - invalid processors and ports (with validation errors)
   - processor and process-group bulletins
   - connection queue snapshots (counts/bytes/percent use)
-  - optional fail-on conditions:
-    - `--fail-on-bulletins` – exit non-zero when bulletins exist
-    - `--queue-count-threshold N` – exit non-zero when any connection has queued FlowFiles >= N
   The integration suite invokes the same command after deployment.
 
 ## Flow Specifications
