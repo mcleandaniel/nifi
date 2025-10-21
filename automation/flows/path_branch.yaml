@@ -2,6 +2,10 @@ process_group:
   name: NiFi Flow
   process_groups:
     - name: PathBranchWorkflow
+      description: |
+        Overview: Attribute-based branching using RouteOnAttribute with 'east' and 'west' routes plus unmatched.
+        Technical: Generate sets 'route' attribute; RouteOnAttribute defines properties 'east' and 'west' with NiFi
+        expression-language predicates; sinks are auto-terminated. Layout is router-centered with sinks stacked right.
       processors:
         - id: generate
           name: Generate FlowFile (with route)

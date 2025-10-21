@@ -2,6 +2,10 @@ process_group:
   name: NiFi Flow
   process_groups:
   - name: TrivialFlow
+    description: |
+      Overview: Minimal smoke-test flow that generates FlowFiles and logs attributes.
+      Technical: A single GenerateFlowFile feeds a LogAttribute sink over the success relationship. The
+      sink is auto-terminated. Intended to validate deploy/start/stop plumbing without controller services.
     processors:
     - id: trivial-generate
       name: Generate FlowFile
@@ -22,6 +26,11 @@ process_group:
       trivial-log:
       - success
   - name: SimpleWorkflow
+    description: |
+      Overview: Record-based pipeline that normalizes a field and branches on a SQL predicate.
+      Technical: GenerateRecord (embedded Avro schema) emits fields 'status' and 'value'. UpdateRecord uppercases
+      /status. QueryRecord evaluates two queries: 'success' routes status='OK' and 'failure' routes all others. Logs
+      at both sinks. Requires JsonTreeReader and JsonRecordSetWriter controller services.
     processors:
     - id: simple-generate
       name: GenerateRecord
@@ -83,6 +92,11 @@ process_group:
       simple-log-failure:
       - success
   - name: MediumWorkflow
+    description: |
+      Overview: Attribute-based routing with RouteOnAttribute to demonstrate branching without record processors.
+      Technical: GenerateFlowFile emits a FlowFile and an attribute (route=success). RouteOnAttribute defines a
+      'success' property using NiFi Expression Language to evaluate the attribute. Success goes to a log; unmatched
+      and failure go to a separate log.
     processors:
     - id: medium-generate
       name: Generate FlowFile (Medium)
@@ -126,6 +140,11 @@ process_group:
       medium-log-failure:
       - success
   - name: ComplexWorkflow
+    description: |
+      Overview: Record-generation, enrichment, and classification into high/low streams using QueryRecord.
+      Technical: GenerateRecord emits fields sensor, reading_value, and status. UpdateRecord normalizes status and
+      fills missing sensor. QueryRecord defines 'high' and 'low' queries to split by a threshold. Failure is routed
+      to a dedicated log. Requires JsonTreeReader and JsonRecordSetWriter controller services.
     processors:
     - id: complex-generate
       name: GenerateRecord (Complex)
@@ -199,6 +218,10 @@ process_group:
       complex-log-failure:
       - success
   - name: NestedWorkflow
+    description: |
+      Overview: Demonstrates a nested process group without ports.
+      Technical: Parent group contains a single child group 'SubFunction' with GenerateFlowFile feeding LogAttribute.
+      Tests nested creation, layout, and teardown sequencing during purge.
     processors: []
     process_groups:
     - name: SubFunction
@@ -222,6 +245,11 @@ process_group:
         nested-sub-log:
         - success
   - name: NestedPortsWorkflow
+    description: |
+      Overview: Demonstrates child process group ports and cross-boundary connections.
+      Technical: Parent GenerateFlowFile connects to the child's input port; inside the child, a LogAttribute emits
+      to the child's output port; the parent connects from that output port to a result logger. Validates port
+      creation, wiring, and layout without overlap between parent processors and child PG.
     processors:
     - id: nested-source
       name: Nested Source
@@ -270,6 +298,10 @@ process_group:
       nested-result-log:
       - success
   - name: PathBranchWorkflow
+    description: |
+      Overview: Attribute-based branching using RouteOnAttribute with 'east' and 'west' routes plus unmatched.
+      Technical: Generate sets 'route' attribute; RouteOnAttribute defines properties 'east' and 'west' with NiFi
+      expression-language predicates; sinks are auto-terminated. Layout is router-centered with sinks stacked right.
     processors:
     - id: path-generate
       name: Generate FlowFile (with route)
@@ -325,6 +357,11 @@ process_group:
       path-log-unmatched:
       - success
   - name: SplitMergeWorkflow
+    description: |
+      Overview: Demonstrates record batch fan-out and fan-in using SplitRecord and MergeRecord.
+      Technical: GenerateRecord emits 9 records; SplitRecord creates 3 splits of 3 records each via the
+      'Records Per Split' property; MergeRecord consumes the splits and emits a single 3-record FlowFile per group
+      using 'Minimum/Maximum Number of Records'. Original and merged outputs are logged via dedicated sinks.
     processors:
     - id: sm-generate
       name: Generate Records (batch)
@@ -392,6 +429,11 @@ process_group:
       sm-log-merged:
       - success
   - name: ContentAttributeRouteWorkflow
+    description: |
+      Overview: Builds minimal JSON from attributes and routes content using a regex-based RouteOnContent.
+      Technical: UpdateAttribute sets 'status' and 'message'; AttributesToJSON writes them into the FlowFile content
+      (Destination=flowfile-content). RouteOnContent exposes a dynamic 'ok' relationship matching status=OK; all
+      other cases go to unmatched/failure and are logged. This avoids external systems while exercising content routing.
     processors:
     - id: car-generate
       name: Generate FlowFile

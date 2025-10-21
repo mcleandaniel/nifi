@@ -2,6 +2,11 @@ process_group:
   name: NiFi Flow
   process_groups:
     - name: SimpleWorkflow
+      description: |
+        Overview: Record-based pipeline that normalizes a field and branches on a SQL predicate.
+        Technical: GenerateRecord (embedded Avro schema) emits fields 'status' and 'value'. UpdateRecord uppercases
+        /status. QueryRecord evaluates two queries: 'success' routes status='OK' and 'failure' routes all others. Logs
+        at both sinks. Requires JsonTreeReader and JsonRecordSetWriter controller services.
       processors:
         - id: generate
           name: GenerateRecord

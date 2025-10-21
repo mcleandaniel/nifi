@@ -2,6 +2,10 @@ process_group:
   name: NiFi Flow
   process_groups:
     - name: TrivialFlow
+      description: |
+        Overview: Minimal smoke-test flow that generates FlowFiles and logs attributes.
+        Technical: A single GenerateFlowFile feeds a LogAttribute sink over the success relationship. The
+        sink is auto-terminated. Intended to validate deploy/start/stop plumbing without controller services.
       processors:
         - id: generate
           name: Generate FlowFile

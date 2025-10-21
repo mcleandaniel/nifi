@@ -1,8 +1,19 @@
 # Test Workflow Suite — LLM Notes
 
-Programmatic automation needs predictable flow definitions to validate end-to-end deployment (create, instantiate, verify). The suite now includes seven workflows — Trivial, Simple, Medium, Complex, Nested, NestedPorts, and PathBranch — providing increasing coverage of NiFi component types and configuration features while remaining deterministic enough for regression testing. All are designed to be torn down and recreated from scratch rather than incrementally updated.
+Programmatic automation needs predictable flow definitions to validate end-to-end deployment (create, instantiate, verify). The suite now includes multiple workflows — Trivial, Simple, Medium, Complex, Nested, NestedPorts, PathBranch, SplitMerge, and ContentAttributeRoute — providing increasing coverage of NiFi component types and configuration features while remaining deterministic enough for regression testing. All are designed to be torn down and recreated from scratch rather than incrementally updated.
+
+Sync policy with flow specs
+- The descriptions in this document must remain in lockstep with the corresponding `description` fields in the YAML specs under `automation/flows/*.yaml`.
+- When you change the description in a flow’s process group in YAML, copy the text verbatim into this file (and vice‑versa) in the same PR to avoid drift.
+- Keep the two-part structure in both places: “Overview” (plain English) and “Technical” (key processors, relationships, irregularities/advanced behavior). Diagrams and examples can be added here, but the core descriptive text should match exactly.
 
 ## 1. Trivial Workflow
+```nifidesc
+name: TrivialFlow
+Overview: Minimal smoke-test flow that generates FlowFiles and logs attributes.
+Technical: A single GenerateFlowFile feeds a LogAttribute sink over the success relationship. The
+sink is auto-terminated. Intended to validate deploy/start/stop plumbing without controller services.
+```
 - **Purpose:** Smoke-test connectivity and REST/CLI call sequencing with the smallest possible footprint.
 - **Components:**
   1. `GenerateFlowFile` processor (default text payload, 0-second run schedule for continuous generation).
@@ -19,6 +30,13 @@ flowchart LR
 ```
 
 ## 2. Simple Workflow
+```nifidesc
+name: SimpleWorkflow
+Overview: Record-based pipeline that normalizes a field and branches on a SQL predicate.
+Technical: GenerateRecord (embedded Avro schema) emits fields 'status' and 'value'. UpdateRecord uppercases
+/status. QueryRecord evaluates two queries: 'success' routes status='OK' and 'failure' routes all others. Logs
+at both sinks. Requires JsonTreeReader and JsonRecordSetWriter controller services.
+```
 - **Purpose:** Introduce routing and attribute manipulation to test property configuration and back pressure basics.
 - **Components:**
   1. `GenerateRecord` processor using an embedded Avro schema (generates a record with fields `status`, `value`).
@@ -45,6 +63,13 @@ flowchart LR
 ```
 
 ## 3. Medium Workflow
+```nifidesc
+name: MediumWorkflow
+Overview: Attribute-based routing with RouteOnAttribute to demonstrate branching without record processors.
+Technical: GenerateFlowFile emits a FlowFile and an attribute (route=success). RouteOnAttribute defines a
+'success' property using NiFi Expression Language to evaluate the attribute. Success goes to a log; unmatched
+and failure go to a separate log.
+```
 - **Purpose:** Cover external interactions, parameter contexts, and controller dependencies.
 - **Components:**
   1. `GenerateFlowFile` to create JSON payloads referencing a REST endpoint path parameter.
@@ -69,6 +94,13 @@ flowchart LR
 ```
 
 ## 4. Complex Workflow
+```nifidesc
+name: ComplexWorkflow
+Overview: Record-generation, enrichment, and classification into high/low streams using QueryRecord.
+Technical: GenerateRecord emits fields sensor, reading_value, and status. UpdateRecord normalizes status and
+fills missing sensor. QueryRecord defines 'high' and 'low' queries to split by a threshold. Failure is routed
+to a dedicated log. Requires JsonTreeReader and JsonRecordSetWriter controller services.
+```
 - **Purpose:** Exercise advanced features—nested process groups, remote connections, record processing, provenance-heavy operations.
 - **High-Level Structure:**
   - **Root Process Group**
@@ -117,6 +149,12 @@ flowchart TD
 ```
 
 ## 5. Nested Workflow
+```nifidesc
+name: NestedWorkflow
+Overview: Demonstrates a nested process group without ports.
+Technical: Parent group contains a single child group 'SubFunction' with GenerateFlowFile feeding LogAttribute.
+Tests nested creation, layout, and teardown sequencing during purge.
+```
 - Purpose: Validate nested process groups and local wiring without ports.
 - Components: A `SubFunction` child group containing `GenerateFlowFile` → `LogAttribute`.
 - Validation Targets: Child PG creation, nested component positioning, and deletion order during purge.
@@ -129,6 +167,13 @@ flowchart LR
 ```
 
 ## 6. NestedPorts Workflow
+```nifidesc
+name: NestedPortsWorkflow
+Overview: Demonstrates child process group ports and cross-boundary connections.
+Technical: Parent GenerateFlowFile connects to the child's input port; inside the child, a LogAttribute emits
+to the child's output port; the parent connects from that output port to a result logger. Validates port
+creation, wiring, and layout without overlap between parent processors and child PG.
+```
 - Purpose: Validate input/output ports within a child process group and connections to/from the parent.
 - Components: Parent `GenerateFlowFile` → Child `NestedPortsSubflow` (In Port → Log → Out Port) → Parent `LogAttribute`.
 - Validation Targets: Port creation and connection wiring across PG boundaries.
@@ -141,6 +186,12 @@ flowchart LR
 ```
 
 ## 7. PathBranch Workflow
+```nifidesc
+name: PathBranchWorkflow
+Overview: Attribute-based branching using RouteOnAttribute with 'east' and 'west' routes plus unmatched.
+Technical: Generate sets 'route' attribute; RouteOnAttribute defines properties 'east' and 'west' with NiFi
+expression-language predicates; sinks are auto-terminated. Layout is router-centered with sinks stacked right.
+```
 - Purpose: Introduce an attribute-based path branch using `RouteOnAttribute`.
 - Components:
   1. `GenerateFlowFile` sets attribute `route` (e.g., `east`).
@@ -158,6 +209,13 @@ flowchart LR
 ```
 
 ## 8. SplitMerge Workflow
+```nifidesc
+name: SplitMergeWorkflow
+Overview: Demonstrates record batch fan-out and fan-in using SplitRecord and MergeRecord.
+Technical: GenerateRecord emits 9 records; SplitRecord creates 3 splits of 3 records each via the
+'Records Per Split' property; MergeRecord consumes the splits and emits a single 3-record FlowFile per group
+using 'Minimum/Maximum Number of Records'. Original and merged outputs are logged via dedicated sinks.
+```
 - Purpose: Exercise record splitting/merging behavior using existing JSON RecordReader/Writer services.
 - Components:
   1. `GenerateRecord` emits a batch of records.
@@ -175,6 +233,13 @@ flowchart LR
 ```
 
 ## 9. ContentAttributeRoute Workflow
+```nifidesc
+name: ContentAttributeRouteWorkflow
+Overview: Builds minimal JSON from attributes and routes content using a regex-based RouteOnContent.
+Technical: UpdateAttribute sets 'status' and 'message'; AttributesToJSON writes them into the FlowFile content
+(Destination=flowfile-content). RouteOnContent exposes a dynamic 'ok' relationship matching status=OK; all
+other cases go to unmatched/failure and are logged. This avoids external systems while exercising content routing.
+```
 - Purpose: Build content from attributes, then route based on content patterns without external systems.
 - Components:
   1. `GenerateFlowFile` seeds an empty JSON.
@@ -197,3 +262,7 @@ flowchart LR
 - Each workflow should include a scripted teardown path: stop components, delete process group, clean up external artifacts (files, DB tables), and clear mock service state.
 - Snapshot the exact component coordinates (bundle artifact/version) used for processors/controller services so programmatic tools can reference consistent components across NiFi versions.
 - Keep sample schemas, parameters, and property payloads in source control alongside automation code to ensure reproducibility.
+- Document the process group using the `description` field in the flow YAML. Include:
+  - Overview (plain English): what the flow does.
+  - Technical: key processors, relationships, and any advanced/irregular behavior (e.g., fan-out/fan-in between SplitRecord and MergeRecord).
+  The deployment engine writes this text to the NiFi process group comments.

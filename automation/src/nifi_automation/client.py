@@ -50,12 +50,20 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         response.raise_for_status()
         return response.json()
 
-    def create_process_group(self, parent_id: str, name: str, position: tuple[float, float]) -> Dict[str, Any]:
+    def create_process_group(
+        self,
+        parent_id: str,
+        name: str,
+        position: tuple[float, float] | None,
+        *,
+        comments: str | None = None,
+    ) -> Dict[str, Any]:
         body = {
             "revision": {"version": 0},
             "component": {
                 "name": name,
-                "position": {"x": position[0], "y": position[1]},
+                **({"position": {"x": position[0], "y": position[1]}} if position else {}),
+                **({"comments": comments} if comments else {}),
             },
         }
         response = self._client.post(f"/process-groups/{parent_id}/process-groups", json=body)

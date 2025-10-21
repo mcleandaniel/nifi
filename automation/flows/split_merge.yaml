@@ -2,6 +2,11 @@ process_group:
   name: NiFi Flow
   process_groups:
     - name: SplitMergeWorkflow
+      description: |
+        Overview: Demonstrates record batch fan-out and fan-in using SplitRecord and MergeRecord.
+        Technical: GenerateRecord emits 9 records; SplitRecord creates 3 splits of 3 records each via the
+        'Records Per Split' property; MergeRecord consumes the splits and emits a single 3-record FlowFile per group
+        using 'Minimum/Maximum Number of Records'. Original and merged outputs are logged via dedicated sinks.
       processors:
         - id: generate
           name: Generate Records (batch)

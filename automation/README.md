@@ -172,6 +172,11 @@ If the deploy fails because services already exist, purge again—`ensure_root_c
     single-flow specs that target the same root and create only the named child group.
 - `python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` recreates the entire hierarchy (purging first) each time.
 
+Descriptions & doc sync
+- Each process group in YAML may include a `description` field (alias `comments`). The deployer copies this to the NiFi PG comments.
+- Keep `automation/flows/test-workflow-suite.md` in sync with the YAML descriptions. When you edit one, copy the description text verbatim into the other in the same PR to avoid drift.
+- Use two subsections in both places: “Overview” (plain English) and “Technical” (processors, relationships, advanced behavior).
+
 To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
 
 ```bash

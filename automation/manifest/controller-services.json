@@ -7,7 +7,7 @@
       "properties": {
         "schema-access-strategy": "infer-schema"
       },
-      "id": "073922de-019a-1000-ce0b-eadf5ce92840"
+      "id": "07593d74-019a-1000-573b-d2cb0661962b"
     },
     {
       "key": "json-writer",
@@ -16,7 +16,7 @@
       "properties": {
         "schema-write-strategy": "no-schema"
       },
-      "id": "0739234c-019a-1000-3783-01d39e80c2f5"
+      "id": "07593dee-019a-1000-d1ed-8a461095872e"
     }
   ]
 }

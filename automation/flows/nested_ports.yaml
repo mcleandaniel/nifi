@@ -2,6 +2,11 @@ process_group:
   name: NiFi Flow
   process_groups:
   - name: NestedPortsWorkflow
+    description: |
+      Overview: Demonstrates child process group ports and cross-boundary connections.
+      Technical: Parent GenerateFlowFile connects to the child's input port; inside the child, a LogAttribute emits
+      to the child's output port; the parent connects from that output port to a result logger. Validates port
+      creation, wiring, and layout without overlap between parent processors and child PG.
     processors:
     - id: nested-source
       name: Nested Source

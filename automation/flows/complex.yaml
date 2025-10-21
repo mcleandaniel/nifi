@@ -2,6 +2,11 @@ process_group:
   name: NiFi Flow
   process_groups:
     - name: ComplexWorkflow
+      description: |
+        Overview: Record-generation, enrichment, and classification into high/low streams using QueryRecord.
+        Technical: GenerateRecord emits fields sensor, reading_value, and status. UpdateRecord normalizes status and
+        fills missing sensor. QueryRecord defines 'high' and 'low' queries to split by a threshold. Failure is routed
+        to a dedicated log. Requires JsonTreeReader and JsonRecordSetWriter controller services.
       processors:
         - id: generate
           name: GenerateRecord

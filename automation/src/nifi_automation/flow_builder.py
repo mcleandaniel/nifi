@@ -51,6 +51,7 @@ class PortSpec:
 class ProcessGroupSpec:
     name: str
     position: Optional[Tuple[float, float]]
+    comments: Optional[str] = None
     processors: List[ProcessorSpec] = field(default_factory=list)
     connections: List[ConnectionSpec] = field(default_factory=list)
     auto_terminate: Dict[str, List[str]] = field(default_factory=dict)
@@ -288,6 +289,7 @@ def _parse_process_group(
         raise FlowDeploymentError("process_group entries must include 'name'")
     position_raw = data.get("position")
     position = _ensure_position(position_raw)
+    comments = data.get("description") or data.get("comments")
 
     processors_data = data.get("processors") or []
     processors: List[ProcessorSpec] = []
@@ -409,6 +411,7 @@ def _parse_process_group(
     return ProcessGroupSpec(
         name=name,
         position=position,
+        comments=comments,
         processors=processors,
         connections=connections,
         auto_terminate={key: list(value) for key, value in (auto_terminate or {}).items()},
@@ -772,6 +775,7 @@ class FlowDeployer:
                 parent_id=parent_pg_id,
                 name=child.name,
                 position=child.position,
+                comments=child.comments,
             )
             child_id = child_entity["id"]
             child_proc_map, child_in_map, child_out_map = self._deploy_group_contents(child_id, child)

@@ -2,6 +2,11 @@ process_group:
   name: NiFi Flow
   process_groups:
     - name: ContentAttributeRouteWorkflow
+      description: |
+        Overview: Builds minimal JSON from attributes and routes content using a regex-based RouteOnContent.
+        Technical: UpdateAttribute sets 'status' and 'message'; AttributesToJSON writes them into the FlowFile content
+        (Destination=flowfile-content). RouteOnContent exposes a dynamic 'ok' relationship matching status=OK; all
+        other cases go to unmatched/failure and are logged. This avoids external systems while exercising content routing.
       processors:
         - id: generate
           name: Generate FlowFile
