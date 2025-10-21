@@ -499,3 +499,92 @@ process_group:
       - success
       car-log-other:
       - success
+  - name: HttpServerWorkflow
+    description: |
+      Overview: Exposes a minimal HTTP endpoint inside NiFi using HandleHttpRequest/HandleHttpResponse.
+      Technical: HandleHttpRequest listens on port 18081 and hands off a FlowFile; HandleHttpResponse returns 204 with
+      Content-Type header. Failure routes to a log. Demonstrates request/response correlation within a single PG without
+      external systems.
+    processors:
+    - id: http-request
+      name: HandleHttpRequest
+      type: org.apache.nifi.processors.standard.HandleHttpRequest
+      properties:
+        Listening Port: '18081'
+        HTTP Context Map: http-context-map
+    - id: http-response
+      name: HandleHttpResponse
+      type: org.apache.nifi.processors.standard.HandleHttpResponse
+      properties:
+        HTTP Status Code: '204'
+        Content-Type: text/plain
+        HTTP Context Map: http-context-map
+    connections:
+    - name: Request to Response
+      source: http-request
+      destination: http-response
+      relationships:
+      - success
+    auto_terminate: {}
+  - name: TwoBranchWorkflow
+    description: |
+      Overview: Splits content and routes into two parallel branches based on fragment index parity.
+      Technical: GenerateFlowFile emits multi-line text; SplitText splits into single-line FlowFiles (fragment.index set).
+      RouteOnAttribute sends even indices to Branch A and odd indices to Branch B using Expression Language modulo tests.
+      Each branch logs independently. Demonstrates multi-branch fan-out.
+    processors:
+    - id: tb-generate
+      name: Generate FlowFile (multiline)
+      type: org.apache.nifi.processors.standard.GenerateFlowFile
+      properties:
+        Batch Size: '1'
+        Data Format: Text
+        Custom Text: |
+          one
+          two
+          three
+          four
+    - id: tb-split
+      name: SplitText (1 line)
+      type: org.apache.nifi.processors.standard.SplitText
+      properties:
+        Line Split Count: '1'
+        Remove Trailing Newlines: 'true'
+    - id: tb-route
+      name: RouteOnAttribute (even/odd)
+      type: org.apache.nifi.processors.standard.RouteOnAttribute
+      properties:
+        branchA: "${fragment.index:mod(2):equals(0)}"
+        branchB: "${fragment.index:mod(2):equals(1)}"
+    - id: tb-logA
+      name: LogAttribute (A)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    - id: tb-logB
+      name: LogAttribute (B)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    connections:
+    - name: Generate to Split
+      source: tb-generate
+      destination: tb-split
+      relationships:
+      - success
+    - name: Split to Route
+      source: tb-split
+      destination: tb-route
+      relationships:
+      - splits
+    - name: Route to A
+      source: tb-route
+      destination: tb-logA
+      relationships:
+      - branchA
+    - name: Route to B
+      source: tb-route
+      destination: tb-logB
+      relationships:
+      - branchB
+    auto_terminate:
+      tb-logA:
+      - success
+      tb-logB:
+      - success

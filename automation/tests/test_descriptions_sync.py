@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Dict
 
 import pytest
@@ -18,6 +19,19 @@ DOC_PATH = Path(__file__).resolve().parents[1] / "flows" / "test-workflow-suite.
 @pytest.mark.skipif(yaml is None, reason="PyYAML required for description sync test")
 def test_yaml_descriptions_present_in_docs_and_aggregate():
     md_text = DOC_PATH.read_text(encoding="utf-8")
+    # Parse nifidesc blocks from MD
+    blocks = re.findall(r"```nifidesc\n(.*?)```", md_text, flags=re.DOTALL)
+    md_desc: Dict[str, str] = {}
+    for block in blocks:
+        lines = [ln.rstrip("\n") for ln in block.splitlines()]
+        if not lines:
+            continue
+        if not lines[0].lower().startswith("name:"):
+            continue
+        name = lines[0].split(":", 1)[1].strip()
+        desc = "\n".join(lines[1:]).strip()
+        if name:
+            md_desc[name] = desc
 
     # Load aggregate NiFi_Flow descriptions for cross-check
     agg = yaml.safe_load((FLOWS_DIR / "NiFi_Flow.yaml").read_text(encoding="utf-8"))
@@ -50,12 +64,14 @@ def test_yaml_descriptions_present_in_docs_and_aggregate():
         assert isinstance(name, str)
         assert isinstance(desc, str) and desc.strip(), f"Missing description in {path.name}"
         desc_norm = desc.strip()
-
-        # Present verbatim in MD
-        assert desc_norm in md_text, f"Description for {name} not present verbatim in test-workflow-suite.md"
+        # Compare exactly to MD block for this flow
+        md_block = md_desc.get(name)
+        assert md_block is not None, f"Doc missing nifidesc block for {name}"
+        # Allow YAML indentation; remove leading whitespace per line for comparison
+        desc_norm_md = "\n".join(ln.lstrip() for ln in desc_norm.splitlines())
+        assert md_block == desc_norm_md, f"Doc block mismatch for {name}"
 
         # Match aggregate description
         agg_desc = agg_desc_by_name.get(name)
         assert agg_desc is not None, f"Aggregate NiFi_Flow.yaml missing description for {name}"
         assert agg_desc == desc_norm, f"Description mismatch for {name} between single YAML and aggregate"
-

@@ -7,7 +7,7 @@
       "properties": {
         "schema-access-strategy": "infer-schema"
       },
-      "id": "07593d74-019a-1000-573b-d2cb0661962b"
+      "id": "0841de0d-019a-1000-0234-46555bc5b43b"
     },
     {
       "key": "json-writer",
@@ -16,7 +16,13 @@
       "properties": {
         "schema-write-strategy": "no-schema"
       },
-      "id": "07593dee-019a-1000-d1ed-8a461095872e"
+      "id": "0841de84-019a-1000-70b7-f6ace5aeb11f"
+    },
+    {
+      "key": "http-context-map",
+      "name": "HTTP Context Map",
+      "type": "org.apache.nifi.http.StandardHttpContextMap",
+      "id": "0841e337-019a-1000-537f-b9e58df4fba2"
     }
   ]
 }

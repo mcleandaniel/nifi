@@ -326,7 +326,10 @@ Error handling:
   ```bash
   python -m nifi_automation.cli.main inspect flow --output json
   ```
-6. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
+6. **Promotion to aggregate**:
+   - After a new flow spec deploys cleanly and passes layout checks, append its process group to `automation/flows/NiFi_Flow.yaml`.
+   - Keep the `description` text in YAML and the `nifidesc` block in `automation/flows/test-workflow-suite.md` in sync (use the sync script).
+7. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
 
 ## 8. Backlog & Enhancements
 - **Spec validation**: Move ad-hoc checks into typed models (likely `pydantic`) so invalid specs fail before REST calls.

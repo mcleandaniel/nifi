@@ -53,6 +53,10 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 ## 7. Usage Cheatsheet
 
 <!-- All commands assume the repository root as CWD. -->
+
+Promotion policy
+- New flows must be added to `automation/flows/NiFi_Flow.yaml` once they pass individually (dry-run + live deploy) and layout checks. The aggregate is the source used by the integration suite.
+- PRs introducing new flows should include: the single-flow spec, the updated aggregate PG block, and the doc description block.
 - Run full suite: `automation/scripts/run_integration_suite.sh`
 - Target a specific flow: `automation/scripts/run_integration_suite.sh automation/flows/complex.yaml`
 - Standalone diagnostics: `python -m nifi_automation.cli.main inspect flow --output json`

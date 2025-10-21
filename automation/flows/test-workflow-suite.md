@@ -7,6 +7,11 @@ Sync policy with flow specs
 - When you change the description in a flow’s process group in YAML, copy the text verbatim into this file (and vice‑versa) in the same PR to avoid drift.
 - Keep the two-part structure in both places: “Overview” (plain English) and “Technical” (key processors, relationships, irregularities/advanced behavior). Diagrams and examples can be added here, but the core descriptive text should match exactly.
 
+Promotion to aggregate (stress this)
+- Always promote new flows to the aggregate `automation/flows/NiFi_Flow.yaml` once they deploy cleanly on their own and pass layout checks.
+- Standalone specs are for iteration only; the aggregate is the canonical deployment target used by integration tests and operators.
+- Include the promotion (copying the PG block into `NiFi_Flow.yaml`) in the same PR as the new flow/spec docs.
+
 ## 1. Trivial Workflow
 ```nifidesc
 name: TrivialFlow
@@ -239,6 +244,38 @@ Overview: Builds minimal JSON from attributes and routes content using a regex-b
 Technical: UpdateAttribute sets 'status' and 'message'; AttributesToJSON writes them into the FlowFile content
 (Destination=flowfile-content). RouteOnContent exposes a dynamic 'ok' relationship matching status=OK; all
 other cases go to unmatched/failure and are logged. This avoids external systems while exercising content routing.
+```
+
+## 10. HTTP Server Workflow
+```nifidesc
+name: HttpServerWorkflow
+Overview: Exposes a minimal HTTP endpoint inside NiFi using HandleHttpRequest/HandleHttpResponse.
+Technical: HandleHttpRequest listens on port 18081 and hands off a FlowFile; HandleHttpResponse returns 204 with
+Content-Type header. Failure routes to a log. Demonstrates request/response correlation within a single PG without
+external systems.
+```
+
+```mermaid
+flowchart LR
+  HQR[HandleHttpRequest] --> R[ReplaceText to JSON]
+  R --> HRS[HandleHttpResponse]
+  R -->|failure| L[LogAttribute]
+```
+
+## 11. TwoBranch Workflow
+```nifidesc
+name: TwoBranchWorkflow
+Overview: Splits content and routes into two parallel branches based on fragment index parity.
+Technical: GenerateFlowFile emits multi-line text; SplitText splits into single-line FlowFiles (fragment.index set).
+RouteOnAttribute sends even indices to Branch A and odd indices to Branch B using Expression Language modulo tests.
+Each branch logs independently. Demonstrates multi-branch fan-out.
+```
+
+```mermaid
+flowchart LR
+  G[GenerateFlowFile (multiline)] --> S[SplitText: 1 line]
+  S -->|fragment.index % 2 == 0| A[Log A]
+  S -->|fragment.index % 2 == 1| B[Log B]
 ```
 - Purpose: Build content from attributes, then route based on content patterns without external systems.
 - Components:
