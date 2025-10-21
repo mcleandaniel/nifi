@@ -311,7 +311,6 @@ Error handling:
    NIFI_PASSWORD="secret"
    ```
 <!-- You may need to change into the automation directory before running the following commands. -->
-<!-- You may need to change into the automation directory before running the following commands. -->
 3. **Standard deployment pipeline**:
   ```bash
   # Purge, deploy default flow, enable controllers, start processors
@@ -321,8 +320,8 @@ Error handling:
   - Use `--dry-run` for a plan-only view without mutating NiFi.
 4. **Integration tests**:
   ```bash
-  scripts/run_integration_suite.sh           # CLI purge + pytest + diagnostics
-  scripts/run_integration_suite.sh automation/flows/complex.yaml  # targeted flow
+  automation/scripts/run_integration_suite.sh           # CLI purge + pytest + diagnostics
+  automation/scripts/run_integration_suite.sh automation/flows/complex.yaml  # targeted flow
   ```
 5. **Diagnostics-only pass**:
   ```bash
@@ -341,7 +340,7 @@ Error handling:
 
 ## 9. Testing & Diagnostics
 - Unit tests cover spec parsing, controller-service provisioning, and flow-builder helpers (`automation/tests/`).
-- Integration suite (`scripts/run_integration_suite.sh`) purges once (via the CLI), ensures controller services exist, deploys the chosen flow(s), and fails on invalid processors, invalid ports, missing child groups, missing ports, or unexpected bulletins.
+- Integration suite (`automation/scripts/run_integration_suite.sh`) purges once (via the CLI), ensures controller services exist, deploys the chosen flow(s), and fails on invalid processors, invalid ports, missing child groups, missing ports, or unexpected bulletins.
 - Diagnostics module (`nifi_automation.diagnostics`) exposes reusable helpers; the CLI `inspect flow` command wraps them for everyday use.
 - Targeted integration runs accept specific specs, e.g. `scripts/run_integration_suite.sh automation/flows/medium.yaml`.
 
@@ -356,7 +355,7 @@ Error handling:
 
 ## 11. Tooling Entry Points
 - `python -m nifi_automation.cli.main run flow <spec>` – purge (once) then deploy + start processors.
-- `scripts/run_integration_suite.sh` – convenience wrapper that purges via the CLI, sets flow list, runs pytest integration suite, and captures diagnostics.
+- `automation/scripts/run_integration_suite.sh` – convenience wrapper that purges via the CLI, sets flow list, runs pytest integration suite, and captures diagnostics.
 - `python -m nifi_automation.cli.main inspect flow` – emits JSON of invalid processors/ports and exits non-zero if any exist.
 
 ## 12. References

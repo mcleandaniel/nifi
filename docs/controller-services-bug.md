@@ -156,9 +156,8 @@ The updated helper in `automation/src/nifi_automation/controller_registry.py` no
 
 Once the controller services enable cleanly with the canonical payloads, rerun the integration suite:
 
-<!-- You may need to change into the automation directory before running the following command. -->
 ```bash
-.venv/bin/python -m pytest automation/tests/integration/test_live_nifi.py
+automation/.venv/bin/python -m pytest automation/tests/integration/test_live_nifi.py
 ```
 
 The fixture now purges automatically and will skip gracefully if NiFi is unreachable.
