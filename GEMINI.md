@@ -75,4 +75,8 @@ The main application binary is located at `nifi-assembly/target/nifi-*-bin.zip`.
 
 The `automation` sub-project contains Python-based tools for REST API automation. On startup, please read the `automation/README.md` file to ensure you have the latest instructions for running tests and other automation tasks.
 
+## Automation Project
+
+The `automation` sub-project contains Python-based tools for REST API automation. On startup, please read the `automation/README.md` file to ensure you have the latest instructions for running tests and other automation tasks.
+
 This information should provide a good starting point for understanding and working with the Apache NiFi project.

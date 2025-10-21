@@ -27,7 +27,7 @@
 5. If a controller service refuses to disable (automation hits `state=ENABLED` after retries), stop every processor
    that references it and retry the disable. NiFi will not disable a service while dependent processors remain
    running or enabling. In practice the fastest way is to schedule the root process group to `STOPPED`, wait for all
-   processors to reach `STOPPED`, disable the services, and only then rerun `automation/scripts/purge_nifi_root.py`.
+   processors to reach `STOPPED`, disable the services, and only then rerun `python -m nifi_automation.cli.main purge flow`.
 
    ```bash
    # Stop everything from the root canvas
@@ -62,13 +62,13 @@
 - Regenerate the controller-service report once the manifest behaves correctly; verify that services such as `JsonRecordSetWriter` show as VALID in NiFi’s UI.
 
 ## Utility Script
-Run `automation/scripts/purge_nifi_root.py` to clear the root PG (queues, processors, controller services) before
+Run `python -m nifi_automation.cli.main purge flow` to clear the root PG (queues, processors, controller services) before
 deployments. For deeper diagnostics, `automation/scripts/provision_json_services.py` can still reprovision the
 JsonTreeReader/JsonRecordSetWriter services and dump their state; however, the standard
-`nifi-automation deploy-flow` command now provisions services automatically when the instance is clean.
+`python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` command now provisions services automatically when the instance is clean.
 ```bash
 cd automation
-RUN_NIFI_INTEGRATION=1 .venv/bin/python scripts/provision_json_services.py
+.venv/bin/python scripts/provision_json_services.py
 ```
 For manual inspection via `curl`, load the `.env` defaults and fetch a token:
 ```bash

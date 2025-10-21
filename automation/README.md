@@ -38,7 +38,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
   ```bash
   nifi-automation auth-token
   nifi-automation flow-summary
-  nifi-automation deploy-flow automation/flows/NiFi_Flow.yaml
+  python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
   nifi-automation controller-services-report --format markdown
   nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
   ```
@@ -53,7 +53,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
   ```bash
   scripts/run_integration_suite.sh
   ```
-  This script purges NiFi once, deploys `automation/flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
+  This script purges NiFi once (via the CLI), deploys `automation/flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
   services, and fails immediately if NiFi reports any invalid processors. Leave NiFi untouched after the run so the
   final deployed state is available for inspection.
    > Codex sandbox note: if you execute this from a sandboxed session, enable network access first  
@@ -61,7 +61,7 @@ This package bootstraps a Python 3.13 command-line interface for interacting wit
    > `/access/token` call fails with `[Errno 1] Operation not permitted`, and the purge step never starts.
 
 ## Local NiFi for Integration Tests
-To run the live integration suite (`RUN_NIFI_INTEGRATION=1`), keep a NiFi 2.0 instance running locally with the expected credentials:
+To run the live integration suite, keep a NiFi 2.0 instance running locally with the expected credentials. The tests automatically attempt to authenticate and will skip gracefully if NiFi is unreachable.
 
 ```bash
 docker run -d --name nifi \
@@ -114,43 +114,44 @@ When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`),
    ```bash
    cd automation
    set -a; source ../.env; set +a
-   .venv/bin/python scripts/purge_nifi_root.py
+   python -m nifi_automation.cli.main purge flow --output json
    ```
-2. **Deploy** – call `nifi-automation deploy-flow automation/flows/NiFi_Flow.yaml` *or* run the convenience script:
+2. **Deploy** – call `python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` *or* run the convenience script:
    ```bash
-   .venv/bin/python scripts/deploy_flows.py
+   python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
    ```
-   The command/script ensures controller services exist (fail-fast if anything already exists) and
-   creates all process groups/processors/connections defined in the spec.
-3. **Verify** – optional `controller-services-report` or REST `curl` if you want to spot-check states/properties.
+   The CLI ensures controller services exist (fail-fast if anything already exists), redeploys the flow,
+   enables controllers, and starts processors. Use `--dry-run` if you only want the deployment plan.
+3. **Verify** – `python -m nifi_automation.cli.main status flow --output json` (or the richer `inspect flow`)
+   to confirm processors/controllers are healthy.
 
 If the deploy fails because services already exist, purge again—`ensure_root_controller_services` intentionally refuses to reconcile on a dirty instance.
 
 ## Diagnostics
-- `scripts/fetch_invalid_processors.py` – lists processors that NiFi currently marks as invalid, including
-  the validation errors reported by NiFi. Pass `--json` for machine-readable output. The integration suite invokes
-  the same checks and will fail if any processor remains invalid after deployment.
+- `python -m nifi_automation.cli.main inspect flow --output json` – surfaces invalid processors and ports (with
+  validation errors) and exits non-zero when issues are present. The integration suite invokes the same command
+  after deployment.
 
 ## Flow Specifications
 - Declarative specs live under `flows/`. Examples:
   - `automation/flows/NiFi_Flow.yaml`: deploys `TrivialFlow`, `SimpleWorkflow`, `MediumWorkflow`, `ComplexWorkflow`, and
     `NestedWorkflow` (which itself contains a `SubFunction` process group) beneath the `NiFi Flow` root.
-  - `flows/trivial.yaml`, `flows/simple.yaml`, `flows/medium.yaml`, `flows/complex.yaml`, `flows/nested.yaml`, `flows/nested_ports.yaml`:
+- `automation/flows/trivial.yaml`, `automation/flows/simple.yaml`, `automation/flows/medium.yaml`, `automation/flows/complex.yaml`, `automation/flows/nested.yaml`, `automation/flows/nested_ports.yaml`:
     single-flow specs that target the same root and create only the named child group.
-- `nifi-automation deploy-flow automation/flows/NiFi_Flow.yaml` recreates the entire hierarchy each time.
+- `python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` recreates the entire hierarchy (purging first) each time.
 
 To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
 
 ```bash
 cd automation
-scripts/run_integration_suite.sh flows/medium.yaml
+scripts/run_integration_suite.sh automation/flows/medium.yaml
 ```
 
 For multiple flows:
 
 ```bash
 cd automation
-scripts/run_integration_suite.sh flows/medium.yaml flows/complex.yaml
+scripts/run_integration_suite.sh automation/flows/medium.yaml automation/flows/complex.yaml
 ```
 
 Multiple specs can be supplied (comma-separated or space-separated); the script sets `NIFI_FLOW_SPECS` for the tests.

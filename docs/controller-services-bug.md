@@ -154,14 +154,14 @@ The updated helper in `automation/src/nifi_automation/controller_registry.py` no
 3. **Doc linkage:** Surface this document in `automation/README.md` so future contributors know where to find the canonical property list.
 4. **Test enhancement:** add an assertion in the integration suite that dumps controller-service states when validation fails so we capture these errors immediately.
 
-Once the controller services enable cleanly with the canonical payloads, rerun:
+Once the controller services enable cleanly with the canonical payloads, rerun the integration suite:
 
 <!-- You may need to change into the automation directory before running the following command. -->
 ```bash
-RUN_NIFI_INTEGRATION=1 .venv/bin/python -m pytest
+.venv/bin/python -m pytest automation/tests/integration/test_live_nifi.py
 ```
 
-to verify both `trivial` and `simple` flows deploy successfully.
+The fixture now purges automatically and will skip gracefully if NiFi is unreachable.
 
 
 Need final doc large but manageable. We'll edit doc to include tables - but we already started doc with sections. Need to add tables for writer etc. Also mention code changes we plan (manifest canonicalization). Provide to-do steps? maybe update final section "Next Steps / TODO" with automation tasks etc.

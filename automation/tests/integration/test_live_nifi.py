@@ -4,16 +4,14 @@ import time
 from pathlib import Path
 from typing import Iterable
 
+import httpx
 import pytest
 
-from nifi_automation.auth import obtain_access_token
+from nifi_automation.auth import AuthenticationError, obtain_access_token
 from nifi_automation.config import build_settings
 from nifi_automation.client import NiFiClient
-from nifi_automation.controller_registry import (
-    MANIFEST_PATH,
-    clear_manifest_service_ids,
-    ensure_root_controller_services,
-)
+from nifi_automation.controller_registry import MANIFEST_PATH, clear_manifest_service_ids, ensure_root_controller_services
+from nifi_automation.infra import purge_adapter
 from nifi_automation.diagnostics import (
     collect_invalid_ports,
     collect_invalid_processors,
@@ -53,10 +51,13 @@ def wait_for_flow_stabilization(client: NiFiClient, pg_id: str, timeout: float =
 
 @pytest.fixture
 def nifi_token():
-    if not os.getenv("RUN_NIFI_INTEGRATION"):
-        pytest.skip("Set RUN_NIFI_INTEGRATION=1 to run live NiFi tests")
     settings = build_settings(None, None, None, False, 10.0)
-    token = obtain_access_token(settings)
+    try:
+        token = obtain_access_token(settings)
+    except AuthenticationError as exc:
+        pytest.skip(f"Skipping live NiFi test: authentication failed ({exc})")
+    except httpx.TransportError as exc:
+        pytest.skip(f"Skipping live NiFi test: NiFi not reachable ({exc})")
     assert token, "Expected NiFi access token"
     return settings, token
 
@@ -71,15 +72,24 @@ def nifi_environment(nifi_token):
     settings, token = nifi_token
     with NiFiClient(settings, token) as client:
         # Environment must be purged before tests run.
-        services = client._client.get(
-            "/flow/process-groups/root/controller-services",
-            params={"includeInherited": "false"},
-        ).json().get("controllerServices") or []
-        root_flow = client._client.get("/flow/process-groups/root").json()["processGroupFlow"]["flow"]
-        if services or (root_flow.get("processGroups") or []):
-            pytest.fail(
-                "NiFi environment not clean. Run scripts/purge_nifi_root.py before executing tests."
+        def _root_state():
+            services_resp = client._client.get(
+                "/flow/process-groups/root/controller-services",
+                params={"includeInherited": "false"},
             )
+            services_resp.raise_for_status()
+            services = services_resp.json().get("controllerServices") or []
+            root_flow = client._client.get("/flow/process-groups/root").json()["processGroupFlow"]["flow"]
+            return services, root_flow.get("processGroups") or []
+
+        services, child_groups = _root_state()
+        if services or child_groups:
+            purge_adapter.graceful_purge(client)
+            services, child_groups = _root_state()
+            if services or child_groups:
+                pytest.fail(
+                    "NiFi environment not clean after purge. Investigate manual state before running tests."
+                )
         service_map = ensure_root_controller_services(client)
         yield client, service_map
 

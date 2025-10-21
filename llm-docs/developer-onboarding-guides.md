@@ -178,7 +178,7 @@ Automation CLI (repo tooling)
 - <span id="claim-automation-local-nifi-docker">For integration tests, run a local NiFi 2.x container exposing 8443 with single-user credentials.</span>
 - <span id="claim-automation-base-url-assumption">Integration tests assume `https://localhost:8443/nifi-api` and the configured single-user credentials.</span>
 - <span id="claim-clean-deploy-purge">Purge the root group and controller services before each deploy using the provided purge script.</span>
-- <span id="claim-clean-deploy-deploy">Deploy flows via `nifi-automation deploy-flow` or scripts under `automation/scripts/`.</span>
+- <span id="claim-clean-deploy-deploy">Deploy flows via `python -m nifi_automation.cli.main run flow <spec>`; integration wrappers live under `automation/scripts/`.</span>
 
 ## Best Practices / Tips
 

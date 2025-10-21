@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+export PYTHONPATH="$ROOT_DIR/automation/src${PYTHONPATH:+:$PYTHONPATH}"
+
 if [ "$#" -gt 0 ]; then
   specs=$(printf "%s," "$@")
   specs=${specs%,}
@@ -13,5 +15,5 @@ fi
 
 export NIFI_FLOW_SPECS="$specs"
 
-./.venv/bin/python scripts/purge_nifi_root.py
-RUN_NIFI_INTEGRATION=1 .venv/bin/pytest tests/integration/test_live_nifi.py
+./.venv/bin/python -m nifi_automation.cli.main purge flow --output json
+.venv/bin/pytest tests/integration/test_live_nifi.py

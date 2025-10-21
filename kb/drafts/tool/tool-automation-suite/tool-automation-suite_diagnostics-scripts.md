@@ -13,7 +13,7 @@ Recommended Sources:
 - automation/src/nifi_automation/diagnostics.py
 
 # Objective
-Explain diagnostic utilities such as fetch_invalid_processors and how they surface state for operators.
+Explain diagnostic utilities built into the CLI (e.g., `python -m nifi_automation.cli.main inspect flow`) and how they surface state for operators.
 
 # Title
 Diagnostics and Reporting Scripts

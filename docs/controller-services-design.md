@@ -47,7 +47,7 @@ This process assumes **no existing controller services** are deployed. It should
 ## Workflow
 
 1. **Purge root group**
-   Use `scripts/purge_nifi_root.py` (or equivalent future CLI) to delete all processors, controller services,
+   Use `python -m nifi_automation.cli.main purge flow` to delete all processors, controller services,
    connections, and queued FlowFiles from the root process group. This guarantees a pristine environment.
 
 2. **Load manifest**
@@ -114,7 +114,7 @@ This process assumes **no existing controller services** are deployed. It should
 ## Deployment Workflow
 
 <!-- You may need to change into the automation directory before running the following command. -->
-- `nifi-automation deploy-flow <spec>` now orchestrates steps 1–7 automatically:
+- `python -m nifi_automation.cli.main run flow <spec>` now orchestrates steps 1–7 automatically:
   1. Purge requirements are enforced by `ensure_root_controller_services`.
   2. Controller services are created directly from the manifest.
   3. Flow components (processors, connections) are created only after services validate successfully.

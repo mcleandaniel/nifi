@@ -311,22 +311,23 @@ Error handling:
    NIFI_PASSWORD="secret"
    ```
 <!-- You may need to change into the automation directory before running the following commands. -->
+<!-- You may need to change into the automation directory before running the following commands. -->
 3. **Standard deployment pipeline**:
-   ```bash
-   # Purge, provision manifest services, deploy default flow
-   .venv/bin/python scripts/deploy_flows.py automation/flows/NiFi_Flow.yaml
-   ```
-   - Add additional specs to the command to deploy multiple flows in sequence.
-   - Use `--no-purge` only when you are certain the instance is already clean.
+  ```bash
+  # Purge, deploy default flow, enable controllers, start processors
+  python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
+  ```
+  - Add additional specs to the command to deploy targeted flows (e.g., `automation/flows/simple.yaml`).
+  - Use `--dry-run` for a plan-only view without mutating NiFi.
 4. **Integration tests**:
-   ```bash
-   scripts/run_integration_suite.sh           # purges + pytest + diagnostics
-   scripts/run_integration_suite.sh automation/flows/complex.yaml  # targeted flow
-   ```
+  ```bash
+  scripts/run_integration_suite.sh           # CLI purge + pytest + diagnostics
+  scripts/run_integration_suite.sh automation/flows/complex.yaml  # targeted flow
+  ```
 5. **Diagnostics-only pass**:
-   ```bash
-   .venv/bin/python scripts/check_invalid_components.py
-   ```
+  ```bash
+  python -m nifi_automation.cli.main inspect flow --output json
+  ```
 6. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
 
 ## 8. Backlog & Enhancements
@@ -340,11 +341,8 @@ Error handling:
 
 ## 9. Testing & Diagnostics
 - Unit tests cover spec parsing, controller-service provisioning, and flow-builder helpers (`automation/tests/`).
-- Integration suite (`scripts/run_integration_suite.sh`) purges once, ensures controller services exist, deploys the chosen flow(s), and fails on invalid processors, invalid ports, missing child groups, missing ports, or unexpected bulletins.
-- Diagnostics module (`nifi_automation.diagnostics`) exposes reusable helpers:
-  - `collect_invalid_processors`
-  - `collect_invalid_ports`
-  - `check_invalid_components.py` wrapper emitting JSON for both
+- Integration suite (`scripts/run_integration_suite.sh`) purges once (via the CLI), ensures controller services exist, deploys the chosen flow(s), and fails on invalid processors, invalid ports, missing child groups, missing ports, or unexpected bulletins.
+- Diagnostics module (`nifi_automation.diagnostics`) exposes reusable helpers; the CLI `inspect flow` command wraps them for everyday use.
 - Targeted integration runs accept specific specs, e.g. `scripts/run_integration_suite.sh automation/flows/medium.yaml`.
 
 ## 10. Known Risks / Edge Cases
@@ -357,11 +355,9 @@ Error handling:
 - Repository state: Delete/recreate wipes PG state each time—acceptable for bootstrap/testing but unsuitable for production reconciliation (explicitly out of scope).
 
 ## 11. Tooling Entry Points
-- `scripts/deploy_flows.py` – purge (unless `--no-purge`), provision manifest services, deploy supplied specs.
-- `scripts/run_integration_suite.sh` – convenience wrapper that purges, sets flow list, runs pytest integration suite, and captures diagnostics.
-- `scripts/check_invalid_components.py` – emits JSON of invalid processors/ports and exits non-zero if any exist.
-- `scripts/fetch_invalid_processors.py` – legacy processor-only diagnostic retained for compatibility.
-- `scripts/purge_nifi_root.py` – recursive purge of the root PG (queues, processors, connections, ports, child groups, root-level services).
+- `python -m nifi_automation.cli.main run flow <spec>` – purge (once) then deploy + start processors.
+- `scripts/run_integration_suite.sh` – convenience wrapper that purges via the CLI, sets flow list, runs pytest integration suite, and captures diagnostics.
+- `python -m nifi_automation.cli.main inspect flow` – emits JSON of invalid processors/ports and exits non-zero if any exist.
 
 ## 12. References
 - Apache NiFi REST API docs: https://nifi.apache.org/docs/nifi-docs/rest-api
