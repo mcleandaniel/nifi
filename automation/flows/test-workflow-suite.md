@@ -1,6 +1,6 @@
 # Test Workflow Suite — LLM Notes
 
-Programmatic automation needs predictable flow definitions to validate end-to-end deployment (create, instantiate, verify). The following four workflows—Trivial, Simple, Medium, and Complex—provide increasing coverage of NiFi component types and configuration features while remaining deterministic enough for regression testing. All are designed to be torn down and recreated from scratch rather than incrementally updated.
+Programmatic automation needs predictable flow definitions to validate end-to-end deployment (create, instantiate, verify). The suite now includes seven workflows — Trivial, Simple, Medium, Complex, Nested, NestedPorts, and PathBranch — providing increasing coverage of NiFi component types and configuration features while remaining deterministic enough for regression testing. All are designed to be torn down and recreated from scratch rather than incrementally updated.
 
 ## 1. Trivial Workflow
 - **Purpose:** Smoke-test connectivity and REST/CLI call sequencing with the smallest possible footprint.
@@ -114,6 +114,47 @@ flowchart TD
     P3 --> P4 --> E1
     P4 --> E2
     P4 --> M1 --> A1
+```
+
+## 5. Nested Workflow
+- Purpose: Validate nested process groups and local wiring without ports.
+- Components: A `SubFunction` child group containing `GenerateFlowFile` → `LogAttribute`.
+- Validation Targets: Child PG creation, nested component positioning, and deletion order during purge.
+
+```mermaid
+flowchart LR
+  subgraph SubFunction
+    A[GenerateFlowFile] --> B[LogAttribute]
+  end
+```
+
+## 6. NestedPorts Workflow
+- Purpose: Validate input/output ports within a child process group and connections to/from the parent.
+- Components: Parent `GenerateFlowFile` → Child `NestedPortsSubflow` (In Port → Log → Out Port) → Parent `LogAttribute`.
+- Validation Targets: Port creation and connection wiring across PG boundaries.
+
+```mermaid
+flowchart LR
+  A[GenerateFlowFile] --> IN[(Nested Sub In)]
+  IN --> L[LogAttribute (Nested Sub)] --> OUT[(Nested Sub Out)]
+  OUT --> R[LogAttribute (Result)]
+```
+
+## 7. PathBranch Workflow
+- Purpose: Introduce an attribute-based path branch using `RouteOnAttribute`.
+- Components:
+  1. `GenerateFlowFile` sets attribute `route` (e.g., `east`).
+  2. `RouteOnAttribute` with named properties (`east`, `west`) plus `unmatched`/`failure` handling.
+  3. Three `LogAttribute` sinks for each path.
+- Connections: `Generate` → `Route` → `Log(east|west|unmatched)`.
+- Validation Targets: Multiple dynamic relationships and auto-termination on all sinks; confirms branching semantics.
+
+```mermaid
+flowchart LR
+  A[GenerateFlowFile] --> R[RouteOnAttribute]
+  R -->|east| E[LogAttribute east]
+  R -->|west| W[LogAttribute west]
+  R -->|unmatched/failure| U[LogAttribute unmatched]
 ```
 
 ## Usage Notes

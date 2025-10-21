@@ -269,3 +269,58 @@ process_group:
     auto_terminate:
       nested-result-log:
       - success
+  - name: PathBranchWorkflow
+    processors:
+    - id: path-generate
+      name: Generate FlowFile (with route)
+      type: org.apache.nifi.processors.standard.GenerateFlowFile
+      scheduling_period: 1 min
+      properties:
+        Batch Size: '1'
+        Data Format: Text
+        Custom Text: example payload
+        route: east
+    - id: path-route
+      name: Route On Attribute (path)
+      type: org.apache.nifi.processors.standard.RouteOnAttribute
+      properties:
+        east: ${route:equals('east')}
+        west: ${route:equals('west')}
+    - id: path-log-east
+      name: LogAttribute (east)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    - id: path-log-west
+      name: LogAttribute (west)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    - id: path-log-unmatched
+      name: LogAttribute (unmatched)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    connections:
+    - name: Generate to Route
+      source: path-generate
+      destination: path-route
+      relationships:
+      - success
+    - name: Route to East
+      source: path-route
+      destination: path-log-east
+      relationships:
+      - east
+    - name: Route to West
+      source: path-route
+      destination: path-log-west
+      relationships:
+      - west
+    - name: Route to Unmatched/Failure
+      source: path-route
+      destination: path-log-unmatched
+      relationships:
+      - unmatched
+      - failure
+    auto_terminate:
+      path-log-east:
+      - success
+      path-log-west:
+      - success
+      path-log-unmatched:
+      - success
