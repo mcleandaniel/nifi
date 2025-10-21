@@ -324,3 +324,136 @@ process_group:
       - success
       path-log-unmatched:
       - success
+  - name: SplitMergeWorkflow
+    processors:
+    - id: sm-generate
+      name: Generate Records (batch)
+      type: org.apache.nifi.processors.standard.GenerateRecord
+      scheduling_period: 1 min
+      properties:
+        record-writer: json-writer
+        number-of-records: '9'
+        nullable-fields: 'false'
+        null-percentage: '0.0'
+        schema-text: |
+          {
+            "type": "record",
+            "name": "reading",
+            "fields": [
+              { "name": "sensor", "type": "string" },
+              { "name": "value",  "type": "int" }
+            ]
+          }
+    - id: sm-split
+      name: SplitRecord (3 per)
+      type: org.apache.nifi.processors.standard.SplitRecord
+      properties:
+        Record Reader: json-reader
+        Record Writer: json-writer
+        Records Per Split: '3'
+    - id: sm-merge
+      name: MergeRecord (3)
+      type: org.apache.nifi.processors.standard.MergeRecord
+      properties:
+        Record Reader: json-reader
+        Record Writer: json-writer
+        Minimum Number of Records: '3'
+        Maximum Number of Records: '3'
+    - id: sm-log-original
+      name: LogAttribute (original)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    - id: sm-log-merged
+      name: LogAttribute (merged)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    connections:
+    - name: Generate to Split
+      source: sm-generate
+      destination: sm-split
+      relationships:
+      - success
+    - name: Split to Merge
+      source: sm-split
+      destination: sm-merge
+      relationships:
+      - splits
+    - name: Split original to Log
+      source: sm-split
+      destination: sm-log-original
+      relationships:
+      - original
+    - name: Merge to Log
+      source: sm-merge
+      destination: sm-log-merged
+      relationships:
+      - merged
+    auto_terminate:
+      sm-log-original:
+      - success
+      sm-log-merged:
+      - success
+  - name: ContentAttributeRouteWorkflow
+    processors:
+    - id: car-generate
+      name: Generate FlowFile
+      type: org.apache.nifi.processors.standard.GenerateFlowFile
+      scheduling_period: 1 min
+      properties:
+        Batch Size: '1'
+        Data Format: Text
+        Custom Text: '{}'
+    - id: car-update
+      name: UpdateAttribute (status/message)
+      type: org.apache.nifi.processors.attributes.UpdateAttribute
+      properties:
+        status: ok
+        message: hello
+    - id: car-to-json
+      name: AttributesToJSON (to content)
+      type: org.apache.nifi.processors.standard.AttributesToJSON
+      properties:
+        Destination: flowfile-content
+        Include Core Attributes: 'false'
+        Attributes List: status,message
+    - id: car-route
+      name: RouteOnContent (status OK)
+      type: org.apache.nifi.processors.standard.RouteOnContent
+      properties:
+        ok: '(?s).*"status"\s*:\s*"OK".*'
+    - id: car-log-ok
+      name: LogAttribute (OK)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    - id: car-log-other
+      name: LogAttribute (Other)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    connections:
+    - name: Generate to Update
+      source: car-generate
+      destination: car-update
+      relationships:
+      - success
+    - name: AttributesToJSON
+      source: car-update
+      destination: car-to-json
+      relationships:
+      - success
+    - name: JSON to Route
+      source: car-to-json
+      destination: car-route
+      relationships:
+      - success
+    - name: Route to OK
+      source: car-route
+      destination: car-log-ok
+      relationships:
+      - ok
+    - name: Route to Other
+      source: car-route
+      destination: car-log-other
+      relationships:
+      - unmatched
+      - failure
+    auto_terminate:
+      car-log-ok:
+      - success
+      car-log-other:
+      - success

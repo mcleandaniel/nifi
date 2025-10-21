@@ -157,6 +157,42 @@ flowchart LR
   R -->|unmatched/failure| U[LogAttribute unmatched]
 ```
 
+## 8. SplitMerge Workflow
+- Purpose: Exercise record splitting/merging behavior using existing JSON RecordReader/Writer services.
+- Components:
+  1. `GenerateRecord` emits a batch of records.
+  2. `SplitRecord` splits into fixed-size chunks (e.g., 3 per FlowFile).
+  3. `MergeRecord` reassembles chunks into a fixed-size group (3) for downstream.
+  4. `LogAttribute` processors capture original and merged outputs.
+- Validation Targets: Record-oriented processors, relationships (`splits`, `original`, `merged`), correct property normalization.
+
+```mermaid
+flowchart LR
+  G[GenerateRecord] --> S[SplitRecord]
+  S -->|splits| M[MergeRecord]
+  S -->|original| LO[Log original]
+  M -->|merged| LM[Log merged]
+```
+
+## 9. ContentAttributeRoute Workflow
+- Purpose: Build content from attributes, then route based on content patterns without external systems.
+- Components:
+  1. `GenerateFlowFile` seeds an empty JSON.
+  2. `UpdateAttribute` sets `status` and `message` attributes.
+  3. `AttributesToJSON` writes attributes into the FlowFile content.
+  4. `RouteOnContent` routes `OK` vs everything else.
+  5. Two `LogAttribute` sinks.
+- Validation Targets: Attribute→content transforms, regex routing, auto-termination of sinks.
+
+```mermaid
+flowchart LR
+  G[GenerateFlowFile] --> U[UpdateAttribute]
+  U --> J[AttributesToJSON]
+  J --> R[RouteOnContent]
+  R -->|ok| LO[Log OK]
+  R -->|unmatched/failure| LX[Log Other]
+```
+
 ## Usage Notes
 - Each workflow should include a scripted teardown path: stop components, delete process group, clean up external artifacts (files, DB tables), and clear mock service state.
 - Snapshot the exact component coordinates (bundle artifact/version) used for processors/controller services so programmatic tools can reference consistent components across NiFi versions.

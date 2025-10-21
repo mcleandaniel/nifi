@@ -1,0 +1,63 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: ContentAttributeRouteWorkflow
+      processors:
+        - id: generate
+          name: Generate FlowFile
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          scheduling_period: '1 min'
+          properties:
+            Batch Size: "1"
+            Data Format: Text
+            Custom Text: '{}'
+        - id: update
+          name: UpdateAttribute (status/message)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            status: ok
+            message: hello
+        - id: to_json
+          name: AttributesToJSON (to content)
+          type: org.apache.nifi.processors.standard.AttributesToJSON
+          properties:
+            Destination: flowfile-content
+            Include Core Attributes: 'false'
+            Attributes List: status,message
+        - id: route
+          name: RouteOnContent (status OK)
+          type: org.apache.nifi.processors.standard.RouteOnContent
+          properties:
+            ok: '(?s).*"status"\s*:\s*"OK".*'
+        - id: log_ok
+          name: LogAttribute (OK)
+          type: org.apache.nifi.processors.standard.LogAttribute
+        - id: log_other
+          name: LogAttribute (Other)
+          type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+        - name: Generate to Update
+          source: generate
+          destination: update
+          relationships: [success]
+        - name: AttributesToJSON
+          source: update
+          destination: to_json
+          relationships: [success]
+        - name: JSON to Route
+          source: to_json
+          destination: route
+          relationships: [success]
+        - name: Route to OK
+          source: route
+          destination: log_ok
+          relationships: [ok]
+        - name: Route to Other
+          source: route
+          destination: log_other
+          relationships: [unmatched, failure]
+      auto_terminate:
+        log_ok:
+          - success
+        log_other:
+          - success

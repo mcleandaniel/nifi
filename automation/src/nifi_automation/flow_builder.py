@@ -537,7 +537,22 @@ def _layout_group_components(group: ProcessGroupSpec) -> None:
             place(sink, base_x + spacing_x, y_offset)
 
     # Chain placement for remaining processors not yet placed
-    # Place nodes that feed into already-placed nodes to the left, preserving y when possible
+    # First, place children to the right of any placed parent to enforce left->right flow
+    changed = True
+    while changed:
+        changed = False
+        for key, spec in proc_map.items():
+            if spec.explicit_position or spec.position is not None:
+                continue
+            parents = in_edges.get(key, [])
+            parent_positions = [placed[p] for p in parents if p in placed]
+            if parent_positions:
+                # Align with first placed parent
+                px, py = parent_positions[0]
+                place(key, px + spacing_x, py)
+                changed = True
+
+    # Then, place nodes that feed into already-placed nodes to the left, preserving y when possible
     changed = True
     while changed:
         changed = False

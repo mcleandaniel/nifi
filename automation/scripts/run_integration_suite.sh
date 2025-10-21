@@ -20,4 +20,7 @@ export NIFI_FLOW_SPECS="$specs"
 
 # Use the per-project venv under automation/.venv
 automation/.venv/bin/python -m nifi_automation.cli.main purge flow --output json
+# First deploy and validate flows
 automation/.venv/bin/pytest automation/tests/integration/test_live_nifi.py
+# Then run layout checks against the deployed instance
+automation/.venv/bin/pytest automation/tests/integration/test_layout_live.py
