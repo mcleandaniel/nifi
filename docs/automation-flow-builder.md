@@ -337,6 +337,15 @@ Error handling:
    - Explicit positions in YAML still override the auto-layout.
 8. **Idempotency**: Deployments delete/recreate the addressed process groups inside the `NiFi Flow` root PG, ensuring identical runs produce identical structures (assuming purge succeeded).
 
+9. **External Triggers (HTTP/JMS/File)**
+- Prefer Parameter Contexts for trigger values (ports, paths, topics, directories) and reference them from processors
+  using `#{param}`. Read defaults from `.env` via the CLI so specs, tests, and runtime are aligned.
+- HTTP minimal pair:
+  - `HandleHttpRequest`: requires an `HTTP Context Map` service and a `Listening Port`. It does not support a “Base Path”
+    property; scope routing via attributes (e.g., `http.request.uri`).
+  - `HandleHttpResponse`: requires `HTTP Status Code` and the same `HTTP Context Map` to correlate.
+- External tests must start processors and allow a brief readiness probe (~10 s) before asserting; failures then must be fatal.
+
 ## 8. Backlog & Enhancements
 - **Spec validation**: Move ad-hoc checks into typed models (likely `pydantic`) so invalid specs fail before REST calls.
 - **Parameter contexts**: Allow specs to declare a parameter context per process group and bind it automatically.

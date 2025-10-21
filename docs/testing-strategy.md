@@ -26,8 +26,11 @@ We build middleware-style applications whose “binary” is a NiFi flow definit
 
 ## 4. External Flow Tests
 - Location: `automation/tests/flows/<ProcessGroupName>/test_*.py` (e.g., `HttpServerWorkflow`).
-- Behavior: Tests fail if the external endpoint/port is not reachable — the trigger is part of the contract.
-- Integration runner starts processors before executing these tests. Ensure ports in specs are free or adjust as needed.
+- Behavior: tests fail if the external endpoint/port is not reachable — the trigger is part of the contract.
+- Startup: execute a short readiness probe (few retries, max ~10 s) after starting processors to avoid racing the
+  listener bind. If still unreachable, the test fails.
+- Scope: the runner discovers PG names in `automation/flows/NiFi_Flow.yaml` and only runs external tests for those
+  groups. Do not add a PG to the aggregate until its standalone spec and external test pass.
 
 ## 5. Known Issues (updated)
 - Integration suite depends on the purge succeeding; avoid external mutations during purge (e.g., other tools creating connections) to prevent race conditions. If encountered, rerun purge.

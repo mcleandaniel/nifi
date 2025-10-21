@@ -13,12 +13,15 @@ process_group:
           type: org.apache.nifi.processors.standard.HandleHttpRequest
           properties:
             Listening Port: "18081"
+            Base Path: "/test"
+            HTTP Context Map: http-context-map
         - id: http-response
           name: HandleHttpResponse
           type: org.apache.nifi.processors.standard.HandleHttpResponse
           properties:
             HTTP Status Code: "204"
             Content-Type: text/plain
+            HTTP Context Map: http-context-map
       connections:
         - name: Request to Response
           source: http-request

@@ -499,33 +499,6 @@ process_group:
       - success
       car-log-other:
       - success
-  - name: HttpServerWorkflow
-    description: |
-      Overview: Exposes a minimal HTTP endpoint inside NiFi using HandleHttpRequest/HandleHttpResponse.
-      Technical: HandleHttpRequest listens on port 18081 and hands off a FlowFile; HandleHttpResponse returns 204 with
-      Content-Type header. Failure routes to a log. Demonstrates request/response correlation within a single PG without
-      external systems.
-    processors:
-    - id: http-request
-      name: HandleHttpRequest
-      type: org.apache.nifi.processors.standard.HandleHttpRequest
-      properties:
-        Listening Port: '18081'
-        HTTP Context Map: http-context-map
-    - id: http-response
-      name: HandleHttpResponse
-      type: org.apache.nifi.processors.standard.HandleHttpResponse
-      properties:
-        HTTP Status Code: '204'
-        Content-Type: text/plain
-        HTTP Context Map: http-context-map
-    connections:
-    - name: Request to Response
-      source: http-request
-      destination: http-response
-      relationships:
-      - success
-    auto_terminate: {}
   - name: TwoBranchWorkflow
     description: |
       Overview: Splits content and routes into two parallel branches based on fragment index parity.

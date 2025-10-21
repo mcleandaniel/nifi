@@ -74,6 +74,7 @@ To run the live integration suite, keep a NiFi 2.0 instance running locally with
 
 ```bash
 docker run -d --name nifi \
+  -p 18081-18180:18081-18180 \
   -p 8443:8443 \
   -e NIFI_WEB_HTTPS_PORT=8443 \
   -e SINGLE_USER_CREDENTIALS_USERNAME=admin \
@@ -206,8 +207,11 @@ Aggregate promotion rule (must-do)
 
 External flow tests
 - Place external-trigger tests under `automation/tests/flows/<ProcessGroupName>/test_*.py` (e.g., `HttpServerWorkflow`).
-- Tests must fail if the endpoint/port is not reachable; the trigger is part of the flow’s contract.
-- The integration runner executes these after deploying the aggregate and starting processors.
+- Tests must fail if the endpoint/port is not reachable; the trigger is part of the flow’s contract. A short readiness
+  probe (a few retries over ~10 s) is acceptable to avoid racing the listener bind, but failures must be fatal.
+- The integration runner only executes flow tests for PGs present in `NiFi_Flow.yaml`. Do not add a new PG to the
+  aggregate until its standalone spec and tests are green.
+- Prefer parameterizing triggers (ports, paths) via Parameter Context values and referencing them in tests via `.env`.
 
 To run the integration suite against alternative specs (e.g., only `medium.yaml`), use:
 
