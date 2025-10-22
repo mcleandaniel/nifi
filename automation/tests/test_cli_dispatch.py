@@ -121,3 +121,22 @@ def test_module_entrypoint_invocation() -> None:
     )
     assert completed.returncode == 0
     assert "Usage:" in completed.stdout
+
+
+def test_validate_layout_dispatch(tmp_path: Path) -> None:
+    captured = {}
+
+    def handler(*, config):
+        captured["called"] = True
+        return CommandResult(message="layout ok")
+
+    key = ("validate", "layout")
+    original = DISPATCH_TABLE.get(key)
+    DISPATCH_TABLE[key] = handler  # type: ignore[assignment]
+    try:
+        result = runner.invoke(app, ["validate", "layout"])
+    finally:
+        if original is not None:
+            DISPATCH_TABLE[key] = original
+    assert result.exit_code == 0
+    assert captured.get("called") is True

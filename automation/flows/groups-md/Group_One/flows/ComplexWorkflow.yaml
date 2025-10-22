@@ -1,0 +1,85 @@
+name: ComplexWorkflow
+description: 'Overview: Record-generation, enrichment, and classification into high/low
+  streams using QueryRecord.
+
+  Technical: GenerateRecord emits fields sensor, reading_value, and status. UpdateRecord
+  normalizes status and
+
+  fills missing sensor. QueryRecord defines ''high'' and ''low'' queries to split
+  by a threshold. Failure is routed
+
+  to a dedicated log. Requires JsonTreeReader and JsonRecordSetWriter controller services.
+
+  '
+processors:
+- id: generate
+  name: GenerateRecord
+  type: org.apache.nifi.processors.standard.GenerateRecord
+  scheduling_period: 1 min
+  properties:
+    record-writer: json-writer
+    number-of-records: '1'
+    nullable-fields: 'false'
+    null-percentage: '0.0'
+    schema-text: "{\n  \"type\": \"record\",\n  \"name\": \"reading\",\n  \"fields\"\
+      : [\n    { \"name\": \"sensor\", \"type\": \"string\" },\n    { \"name\": \"\
+      reading_value\", \"type\": \"double\" },\n    { \"name\": \"status\", \"type\"\
+      : \"string\" }\n  ]\n}\n"
+- id: enrich
+  name: UpdateRecord
+  type: org.apache.nifi.processors.standard.UpdateRecord
+  properties:
+    Record Reader: json-reader
+    Record Writer: json-writer
+    /status: UPPER(/status)
+    /sensor: COALESCE(/sensor, 'unknown')
+- id: categorize
+  name: QueryRecord
+  type: org.apache.nifi.processors.standard.QueryRecord
+  properties:
+    record-reader: json-reader
+    record-writer: json-writer
+    high: SELECT * FROM FLOWFILE WHERE reading_value >= 50
+    low: SELECT * FROM FLOWFILE WHERE reading_value < 50
+- id: log_high
+  name: LogAttribute (High)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_low
+  name: LogAttribute (Low)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_failure
+  name: LogAttribute (Failure)
+  type: org.apache.nifi.processors.standard.LogAttribute
+connections:
+- name: Generate to Enrich
+  source: generate
+  destination: enrich
+  relationships:
+  - success
+- name: Enrich to Categorize
+  source: enrich
+  destination: categorize
+  relationships:
+  - success
+- name: Categorize to Log High
+  source: categorize
+  destination: log_high
+  relationships:
+  - high
+- name: Categorize to Log Low
+  source: categorize
+  destination: log_low
+  relationships:
+  - low
+- name: Categorize to Failure
+  source: categorize
+  destination: log_failure
+  relationships:
+  - failure
+auto_terminate:
+  log_high:
+  - success
+  log_low:
+  - success
+  log_failure:
+  - success

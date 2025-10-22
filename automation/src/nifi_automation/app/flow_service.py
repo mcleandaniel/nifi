@@ -69,6 +69,18 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
             topo = diag_adapter.validate_deployed_topology(client, flowfile)
             if not topo.get("ok", False):
                 raise ValidationError("Topology validation failed (missing processors or count mismatch)", details={"topology": topo})
+            # Layout validation: attach report and fail when overlaps exist
+            from ..infra.layout_checker import check_layout as _check_layout
+
+            layout = _check_layout(client)
+            if layout.get("overlaps"):
+                return CommandResult(
+                    exit_code=ExitCode.VALIDATION,
+                    message=f"Layout overlaps detected: {len(layout['overlaps'])}",
+                    data={"process_group_id": deploy_result.get("process_group_id")},
+                    details={"layout": layout},
+                )
+
             _log(config, "[flow] waiting for deployed components to stabilize")
             _await_stable_states(config, client)
             _log(config, "[flow] enabling controller services")
@@ -82,6 +94,9 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
             conn_roll = rollup_connections(connections)
             details["connections"] = {"counts": conn_roll.counts, "worst": conn_roll.worst}
             if conn_roll.worst == "BLOCKED":
+                status_token = "INVALID"
+            # Require all processors RUNNING after start
+            if status_token not in {"INVALID", "TRANSITION"} and not proc_roll.all_running:
                 status_token = "INVALID"
         except ValidationError as exc:
             details = exc.details or diag_adapter.gather_validation_details(client)
@@ -124,6 +139,18 @@ def deploy_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
         purge_adapter.graceful_purge(client)
         _log(config, "[flow] deploying flow specification")
         result = deploy_adapter.deploy_flow(client, flowfile, dry_run=False)
+        from ..infra.layout_checker import check_layout as _check_layout
+        layout = _check_layout(client)
+        if layout.get("overlaps"):
+            return CommandResult(
+                exit_code=ExitCode.VALIDATION,
+                message=f"Layout overlaps detected: {len(layout['overlaps'])}",
+                data={
+                    "process_group_id": result.get("process_group_id"),
+                    "controller_services": result.get("controller_services"),
+                },
+                details={"layout": layout},
+            )
         _log(config, "[flow] validating deployed topology against spec")
         topo = diag_adapter.validate_deployed_topology(client, flowfile)
         if not topo.get("ok", False):

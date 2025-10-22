@@ -1,0 +1,55 @@
+name: MediumWorkflow
+description: 'Overview: Attribute-based routing with RouteOnAttribute to demonstrate
+  branching without record processors.
+
+  Technical: GenerateFlowFile emits a FlowFile and an attribute (route=success). RouteOnAttribute
+  defines a
+
+  ''success'' property using NiFi Expression Language to evaluate the attribute. Success
+  goes to a log; unmatched
+
+  and failure go to a separate log.
+
+  '
+processors:
+- id: generate
+  name: Generate FlowFile
+  type: org.apache.nifi.processors.standard.GenerateFlowFile
+  scheduling_period: 1 min
+  properties:
+    Batch Size: '1'
+    Data Format: Text
+    Custom Text: route=success
+- id: route
+  name: Route On Attribute
+  type: org.apache.nifi.processors.standard.RouteOnAttribute
+  properties:
+    success: ${route:equals('success')}
+- id: log_success
+  name: LogAttribute (Success)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_failure
+  name: LogAttribute (Failure)
+  type: org.apache.nifi.processors.standard.LogAttribute
+connections:
+- name: Generate to Route
+  source: generate
+  destination: route
+  relationships:
+  - success
+- name: Route to Success Log
+  source: route
+  destination: log_success
+  relationships:
+  - success
+- name: Route to Failure Log
+  source: route
+  destination: log_failure
+  relationships:
+  - unmatched
+  - failure
+auto_terminate:
+  log_success:
+  - success
+  log_failure:
+  - success

@@ -51,7 +51,16 @@ def disable_root_controller_services(client: NiFiClient, *, timeout: float = 30.
         service_id = component.get("id")
         if not service_id:
             continue
-        client.disable_controller_service(service_id)
+        # Retry disable to tolerate 409 revision/state conflicts
+        for attempt in range(6):
+            try:
+                client.disable_controller_service(service_id)
+                break
+            except httpx.HTTPStatusError as exc:
+                if exc.response is not None and exc.response.status_code == 409 and attempt < 5:
+                    time.sleep(0.5)
+                    continue
+                raise
         deadline = time.time() + timeout
         while True:
             entity = client.get_controller_service(service_id)

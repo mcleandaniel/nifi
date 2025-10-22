@@ -56,10 +56,8 @@ def test_cli_end_to_end():
     assert purge_payload["message"] == "Purged NiFi root"
 
     flow_spec = Path("automation/flows/NiFi_Flow.yaml").resolve()
-    run_payload = _run_cli(
-        ["run", "flow", str(flow_spec), "--output", "json"]
-    )
-    assert run_payload.get("status") in {"UP", "HEALTHY"}
+    run_payload = _run_cli(["run", "flow", str(flow_spec), "--output", "json"])
+    assert run_payload.get("status") == "UP"
 
     status_payload = _run_cli(["status", "flow", "--output", "json"])
     assert status_payload.get("status") in {"UP", "HEALTHY"}

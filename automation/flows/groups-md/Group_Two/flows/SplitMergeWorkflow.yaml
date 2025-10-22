@@ -1,0 +1,74 @@
+name: SplitMergeWorkflow
+description: 'Overview: Demonstrates record batch fan-out and fan-in using SplitRecord
+  and MergeRecord.
+
+  Technical: GenerateRecord emits 9 records; SplitRecord creates 3 splits of 3 records
+  each via the
+
+  ''Records Per Split'' property; MergeRecord consumes the splits and emits a single
+  3-record FlowFile per group
+
+  using ''Minimum/Maximum Number of Records''. Original and merged outputs are logged
+  via dedicated sinks.
+
+  '
+processors:
+- id: generate
+  name: Generate Records (batch)
+  type: org.apache.nifi.processors.standard.GenerateRecord
+  scheduling_period: 1 min
+  properties:
+    record-writer: json-writer
+    number-of-records: '9'
+    nullable-fields: 'false'
+    null-percentage: '0.0'
+    schema-text: "{\n  \"type\": \"record\",\n  \"name\": \"reading\",\n  \"fields\"\
+      : [\n    { \"name\": \"sensor\", \"type\": \"string\" },\n    { \"name\": \"\
+      value\",  \"type\": \"int\" }\n  ]\n}\n"
+- id: split
+  name: SplitRecord (3 per)
+  type: org.apache.nifi.processors.standard.SplitRecord
+  properties:
+    Record Reader: json-reader
+    Record Writer: json-writer
+    Records Per Split: '3'
+- id: merge
+  name: MergeRecord (3)
+  type: org.apache.nifi.processors.standard.MergeRecord
+  properties:
+    Record Reader: json-reader
+    Record Writer: json-writer
+    Minimum Number of Records: '3'
+    Maximum Number of Records: '3'
+- id: log_original
+  name: LogAttribute (original)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_merged
+  name: LogAttribute (merged)
+  type: org.apache.nifi.processors.standard.LogAttribute
+connections:
+- name: Generate to Split
+  source: generate
+  destination: split
+  relationships:
+  - success
+- name: Split to Merge
+  source: split
+  destination: merge
+  relationships:
+  - splits
+- name: Split original to Log
+  source: split
+  destination: log_original
+  relationships:
+  - original
+- name: Merge to Log
+  source: merge
+  destination: log_merged
+  relationships:
+  - merged
+auto_terminate:
+  log_original:
+  - success
+  log_merged:
+  - success

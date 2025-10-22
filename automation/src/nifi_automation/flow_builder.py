@@ -7,6 +7,7 @@ import math
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
+import yaml
 
 try:
     import yaml
@@ -86,6 +87,24 @@ class PreparedProcessor:
 class FlowDeploymentError(RuntimeError):
     """Raised when a flow specification cannot be deployed."""
 
+_DEFAULT_SCHEDULING_BY_TYPE: Dict[str, str] = {}
+
+def _load_defaults() -> None:
+    global _DEFAULT_SCHEDULING_BY_TYPE
+    if _DEFAULT_SCHEDULING_BY_TYPE:
+        return
+    try:
+        defaults_path = Path(__file__).resolve().parents[2] / "config" / "flow-defaults.yaml"
+        if defaults_path.exists():
+            data = yaml.safe_load(defaults_path.read_text()) or {}
+            for entry in data.get("processor_defaults", []) or []:
+                ptype = entry.get("type")
+                sched = entry.get("scheduling_period")
+                if ptype and sched:
+                    _DEFAULT_SCHEDULING_BY_TYPE[str(ptype)] = str(sched)
+    except Exception:
+        # Defaults are optional; ignore load errors
+        _DEFAULT_SCHEDULING_BY_TYPE = {}
 
 def _ensure_position(raw: Optional[Iterable[float]]) -> Optional[Tuple[float, float]]:
     if raw is None:
@@ -444,8 +463,8 @@ def _layout_child_groups(groups: List[ProcessGroupSpec]) -> None:
         return
     count = len(groups)
     columns = max(1, math.ceil(math.sqrt(count)))
-    spacing_x = 600.0
-    spacing_y = 400.0
+    spacing_x = 700.0
+    spacing_y = 450.0
     # Reserve a left gutter so top-level processors in the same parent group
     # have space without overlapping the first child group.
     left_gutter = spacing_x
@@ -467,8 +486,8 @@ def _layout_group_components(group: ProcessGroupSpec) -> None:
     - Place remaining processors using a left-to-right chain when possible; otherwise a compact grid.
     - Input ports along a left gutter; output ports along a right gutter.
     """
-    spacing_x = 400.0
-    spacing_y = 200.0
+    spacing_x = 480.0
+    spacing_y = 240.0
 
     # Build processor maps and adjacency limited to processors in this group
     proc_map: Dict[str, ProcessorSpec] = {p.key: p for p in group.processors}
@@ -571,32 +590,118 @@ def _layout_group_components(group: ProcessGroupSpec) -> None:
                 place(key, min_x - spacing_x, y)
                 changed = True
 
-    # Fallback: grid for any still-unplaced processors
-    remaining = [p for p in group.processors if p.position is None or p.explicit_position is False and p.position is None]
+    # Fallback: layer remaining processors left-to-right based on graph distances
+    remaining = [p for p in group.processors if p.position is None or (p.explicit_position is False and p.position is None)]
     if remaining:
-        count = len(remaining)
-        cols = max(1, math.ceil(math.sqrt(count)))
-        for idx, proc in enumerate(remaining):
-            row = idx // cols
-            col = idx % cols
-            place(proc.key, col * spacing_x, row * spacing_y)
+        # Initialize columns with 0 for sources (no in-edges), else None
+        keys = [p.key for p in remaining]
+        in_deg = {k: len(in_edges.get(k, [])) for k in keys}
+        col: Dict[str, int] = {k: 0 for k in keys}
+        # Kahn-style layering using queue of sources; promote children to at least parent+1
+        from collections import deque
+        q = deque([k for k in keys if in_deg.get(k, 0) == 0])
+        visited = set()
+        while q:
+            u = q.popleft()
+            visited.add(u)
+            for v in out_edges.get(u, []):
+                if v not in col:
+                    continue
+                col[v] = max(col.get(v, 0), col.get(u, 0) + 1)
+                in_deg[v] = max(0, in_deg.get(v, 0) - 1)
+                if in_deg[v] == 0 and v not in visited:
+                    q.append(v)
+        # Assign rows within each column
+        columns: Dict[int, List[str]] = {}
+        for k in keys:
+            c = col.get(k, 0)
+            columns.setdefault(c, []).append(k)
+        for c, names in columns.items():
+            for r, k in enumerate(names):
+                place(k, c * spacing_x, r * spacing_y)
 
-    # Layout input ports along a left gutter
-    missing_in = [p for p in group.input_ports if not p.explicit_position or p.position is None]
-    for idx, port in enumerate(missing_in):
-        if port.position is None:
-            port.position = (-200.0, idx * 200.0)
+    # Layout ports near connected processors with increased spacing, snapping to processor "swim lanes" (row Y values)
+    # Compute processor spread
+    placed_positions = [p.position for p in group.processors if p.position is not None]
+    if placed_positions:
+        min_x = min(x for x, _ in placed_positions)
+        max_x = max(x for x, _ in placed_positions)
+    else:
+        min_x = 0.0
+        max_x = 0.0
 
-    # Layout output ports along a right gutter relative to processor spread
-    max_x = 0.0
-    for p in group.processors:
-        if p.position is not None:
-            max_x = max(max_x, p.position[0])
-    right_x = max_x + 200.0
-    missing_out = [p for p in group.output_ports if not p.explicit_position or p.position is None]
-    for idx, port in enumerate(missing_out):
+    left_x = min_x - (spacing_x * 0.8)
+    right_x = max_x + (spacing_x * 0.8)
+
+    # Map connections to ports
+    input_port_ids = {p.key for p in group.input_ports}
+    output_port_ids = {p.key for p in group.output_ports}
+
+    port_in_targets: Dict[str, List[Tuple[float, float]]] = {}
+    port_out_sources: Dict[str, List[Tuple[float, float]]] = {}
+    for conn in group.connections:
+        # Input port -> Processor
+        if conn.source in input_port_ids and conn.destination in placed:
+            port_in_targets.setdefault(conn.source, []).append(placed[conn.destination])
+        # Processor -> Output port
+        if conn.destination in output_port_ids and conn.source in placed:
+            port_out_sources.setdefault(conn.destination, []).append(placed[conn.source])
+
+    # Build swim lanes from processor Y positions
+    lane_step = spacing_y
+    lanes: List[float] = []
+    if placed_positions:
+        lanes = sorted({round(y / lane_step) * lane_step for _, y in placed_positions})
+
+    # Place input ports snapped to nearest lane; vertically stagger if multiple share a lane
+    in_lane_counts: Dict[float, int] = {}
+    in_free_row = 0
+    for port in group.input_ports:
+        if port.explicit_position:
+            continue
         if port.position is None:
-            port.position = (right_x, idx * 200.0)
+            targets = port_in_targets.get(port.key) or []
+            if targets:
+                base_y = sum(y for _, y in targets) / len(targets)
+                if lanes:
+                    lane = min(lanes, key=lambda ly: abs(ly - base_y))
+                else:
+                    lane = round(base_y / lane_step) * lane_step
+                offset_idx = in_lane_counts.get(lane, 0)
+                x = left_x
+                # vertical spacing between ports on same lane
+                y = lane + offset_idx * (spacing_y * 0.6)
+                in_lane_counts[lane] = offset_idx + 1
+            else:
+                # No targets known: place on next free lane below
+                y = in_free_row * lane_step
+                in_free_row += 1
+                x = left_x
+            port.position = (x, y)
+
+    # Place output ports snapped to nearest lane; vertically stagger if multiple share a lane
+    out_lane_counts: Dict[float, int] = {}
+    out_free_row = 0
+    for port in group.output_ports:
+        if port.explicit_position:
+            continue
+        if port.position is None:
+            sources = port_out_sources.get(port.key) or []
+            if sources:
+                base_y = sum(y for _, y in sources) / len(sources)
+                if lanes:
+                    lane = min(lanes, key=lambda ly: abs(ly - base_y))
+                else:
+                    lane = round(base_y / lane_step) * lane_step
+                offset_idx = out_lane_counts.get(lane, 0)
+                x = right_x
+                y = lane + offset_idx * (spacing_y * 0.6)
+                out_lane_counts[lane] = offset_idx + 1
+            else:
+                y = out_free_row * lane_step
+                out_free_row += 1
+                x = right_x
+            port.position = (x, y)
 
 
 class FlowDeployer:
@@ -642,6 +747,7 @@ class FlowDeployer:
         self,
         group_spec: ProcessGroupSpec,
     ) -> List[PreparedProcessor]:
+        _load_defaults()
         metadata_by_key: Dict[str, Dict[str, Any]] = {}
         for proc in group_spec.processors:
             metadata_by_key[proc.key] = self.client.get_processor_metadata(proc.type)
@@ -650,6 +756,11 @@ class FlowDeployer:
 
         prepared: List[PreparedProcessor] = []
         for proc in group_spec.processors:
+            # Apply scheduling defaults by processor type when not explicitly provided
+            if not proc.scheduling_period:
+                default_sched = _DEFAULT_SCHEDULING_BY_TYPE.get(proc.type)
+                if default_sched:
+                    proc.scheduling_period = default_sched
             metadata = metadata_by_key[proc.key]
             descriptors = metadata.get("propertyDescriptors") or {}
             normalized = validate_and_normalize_properties(

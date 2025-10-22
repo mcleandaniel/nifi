@@ -138,6 +138,19 @@ nifi-automation auth-token \
   --password changeme
 ```
 
+## Two‑Phase Validation Flow (Deploy → Start)
+
+- After any change, validate in two phases. You can run them explicitly:
+  - Deploy phase (no processors started yet):
+    - `nifi-automation deploy flow automation/flows/NiFi_Flow.yaml --output json`
+      - Fails if topology mismatches or layout overlaps exist.
+  - Start phase:
+    - `nifi-automation up flow --output json`
+      - Requires all processors to be RUNNING; reports connection backpressure.
+- Or run them together with a single helper:
+  - `nifi-automation run flow automation/flows/NiFi_Flow.yaml --output json`
+  - This literally performs the deploy phase validations (topology + layout) and then starts processors and enforces that the final status is UP.
+
 ## Clean Deploy Workflow (root-run)
 
 When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`), follow this sequence:
@@ -196,6 +209,16 @@ Doc as source-of-truth (nifidesc) and sync tool
   ```
   
 - The integration tests enforce that YAML descriptions match the doc blocks.
+
+Groups MD build (aggregate from groups-md)
+- We are migrating to a groups-first build where group metadata and per-workflow YAML
+  fragments live under `automation/flows/groups-md/`. The builder assembles
+  `automation/flows/NiFi_Flow_groups.yaml` without reading `automation/flows/*.yaml`.
+- See `automation/flows/README.md` for details and commands (experimental, not for deploy yet).
+  - Build grouped YAML:
+    - `python automation/scripts/build_groups_yaml_from_md.py --md-dir automation/flows/groups-md --out automation/flows/groups-md/NiFi_Flow_groups.yaml --root-name "NiFi Flow"`
+  - One-time seed of per-workflow fragments (during migration):
+    - `python automation/scripts/seed_groups_yaml_from_single_flows.py --md-dir automation/flows/groups-md --flows-dir automation/flows --out-md-dir automation/flows/groups-md`
 
 Aggregate promotion rule (must-do)
 - After a new flow spec (e.g., `automation/flows/my_flow.yaml`) deploys cleanly on its own and passes layout/validation checks, you must add it to the aggregate `automation/flows/NiFi_Flow.yaml` in the same PR.

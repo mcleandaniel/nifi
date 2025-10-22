@@ -1,0 +1,3 @@
+processor_defaults:
+  - type: org.apache.nifi.processors.standard.GenerateFlowFile
+    scheduling_period: "1 min"

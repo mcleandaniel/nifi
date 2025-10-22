@@ -597,6 +597,7 @@ process_group:
     - id: src-seed
       name: Generate FlowFile (seed)
       type: org.apache.nifi.processors.standard.GenerateFlowFile
+      scheduling_period: 1 min
       properties:
         Batch Size: '1'
     - id: sink-ok

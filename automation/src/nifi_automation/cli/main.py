@@ -7,7 +7,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import click
 
-from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service
+from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service, layout_service
 from ..app.errors import AppError, BadInputError, HTTPError, TimeoutError, ValidationError
 from ..app.models import AppConfig, CommandResult, ExitCode
 from .io import emit_error, emit_result
@@ -42,6 +42,7 @@ DISPATCH_TABLE: Dict[DispatchKey, Handler] = {
     ("stop", "ports"): port_service.stop_all,
     ("status", "ports"): port_service.status,
     ("inspect", "ports"): port_service.inspect,
+    ("validate", "layout"): layout_service.validate,
 }
 
 FLOWFILE_COMMANDS = {("run", "flow"), ("deploy", "flow")}
@@ -117,6 +118,7 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
         "  - controllers  : enable/disable/status/inspect controller services\n"
         "  - connections  : status/inspect/truncate connection queues\n"
         "  - ports        : start/stop/status/inspect input/output ports\n\n"
+        "  - layout       : validate (validate layout)\n\n"
         "Notes:\n"
         "  - 'run flow <file>' and 'deploy flow <file>' require a flow YAML path.\n"
         "  - '--output text' prints the worst token only; '--output json' prints counts and details.\n"
@@ -127,6 +129,7 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
         "  nifi-automation inspect controllers --output json\n"
         "  nifi-automation status connections --output json\n"
         "  nifi-automation truncate connections --output json\n"
+        "  nifi-automation validate layout --output json\n"
     ),
 )
 @click.argument("verb")

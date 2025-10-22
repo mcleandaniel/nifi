@@ -1,15 +1,21 @@
-# Agent Handbook
+# Agent Guidelines for This Repository
 
-- Prefer scripted or programmatic workflows over manual steps. When demonstrating API calls (e.g., `curl`), load credentials automatically (from `.env`, token scripts, etc.) and avoid instructions that require the user to paste IDs or edit commands.
-- Do **not** ask the user to set shell variables manually when you can do it for them. Either hardcode the values (when appropriate) or include the `export`/`source`/`TOKEN=…` steps in the script or command snippet.
-- If you notice repeated attempts failing, revert to a focused workflow: write a small test or utility script, run it step-by-step, and surface deterministic reproduction steps before retrying larger flows.
-- When working under `automation/`, start each session by skimming `automation/README.md` for environment setup hints, then review the relevant docs in `docs/` (controller service notes, flow specs) and `llm-docs/` so you load context before running commands or tests.
-- **Codex context warm-up:** at the start of a Codex CLI session, populate context by emitting the key docs in one block, for example:
-  ```bash
-  cd automation
-  for f in README.md docs/cli-refactor-plan.md docs/controller-services-design.md docs/controller-services-bug.md; do
-    printf '\n===== %s =====\n' "$f"
-    cat "$f"
-  done
-  ```
-- **Codex venv note:** Codex shells do not inherit your host virtualenv. After Codex starts, re-activate the project venv with `source automation/.venv/bin/activate` (or inject `PATH`/`VIRTUAL_ENV` when launching Codex) before running Python/pytest.
+Purpose
+- Keep the assistant aligned with project priorities and avoid noisy, repetitive suggestions.
+
+When suggesting features or changes
+- Before proposing a feature, check `automation/docs/TODO.md` and `docs/cli-refactor-plan.md`.
+  - If the idea already exists there, acknowledge it and do not repeat the suggestion.
+  - If the idea is new and valuable, add it to `automation/docs/TODO.md` with a concise description and acceptance criteria.
+
+Layout/validation considerations
+- Use the built-in layout checker (`infra/layout_checker.py`) semantics when discussing or proposing layout changes.
+- Follow the project’s NOTDO rules in `automation/docs/TODO.md` (e.g., do not weaken backpressure gating).
+
+CLI and scripts
+- Prefer scripted commands over manual steps. When demonstrating CLI usage, include environment setup (e.g., `source .env`).
+- Use the module entrypoint (`python -m nifi_automation.cli.main`) in tests to mirror real usage.
+
+Testing defaults
+- For integration behaviors (start/stop/enable/disable), prefer live tests in `automation/tests/integration/` and wire them into `automation/scripts/run_integration_suite.sh`.
+

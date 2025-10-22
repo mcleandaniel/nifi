@@ -1,0 +1,859 @@
+process_group:
+  name: NiFi Flow
+  groups:
+  - name: Group One
+    description: Core and simple flows
+    process_groups:
+    - name: TrivialFlow
+      description: 'Overview: Minimal smoke-test flow that generates FlowFiles and
+        logs attributes.
+
+        Technical: A single GenerateFlowFile feeds a LogAttribute sink over the success
+        relationship. The
+
+        sink is auto-terminated. Intended to validate deploy/start/stop plumbing without
+        controller services.
+
+        '
+      processors:
+      - id: generate
+        name: Generate FlowFile
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        scheduling_period: 1 min
+        properties:
+          Batch Size: '1'
+      - id: log
+        name: Log Attribute
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Log
+        source: generate
+        destination: log
+        relationships:
+        - success
+      auto_terminate:
+        log:
+        - success
+    - name: SimpleWorkflow
+      description: 'Overview: Record-based pipeline that normalizes a field and branches
+        on a SQL predicate.
+
+        Technical: GenerateRecord (embedded Avro schema) emits fields ''status'' and
+        ''value''. UpdateRecord uppercases
+
+        /status. QueryRecord evaluates two queries: ''success'' routes status=''OK''
+        and ''failure'' routes all others. Logs
+
+        at both sinks. Requires JsonTreeReader and JsonRecordSetWriter controller
+        services.
+
+        '
+      processors:
+      - id: generate
+        name: GenerateRecord
+        type: org.apache.nifi.processors.standard.GenerateRecord
+        scheduling_period: 1 min
+        properties:
+          record-writer: json-writer
+          number-of-records: '1'
+          nullable-fields: 'false'
+          null-percentage: '0.0'
+          schema-text: "{\n  \"type\": \"record\",\n  \"name\": \"test\",\n  \"fields\"\
+            : [\n    { \"name\": \"status\", \"type\": \"string\" },\n    { \"name\"\
+            : \"value\", \"type\": \"int\" }\n  ]\n}\n"
+      - id: update
+        name: UpdateRecord
+        type: org.apache.nifi.processors.standard.UpdateRecord
+        properties:
+          Record Reader: json-reader
+          Record Writer: json-writer
+          /status: UPPER(/status)
+      - id: query
+        name: QueryRecord
+        type: org.apache.nifi.processors.standard.QueryRecord
+        properties:
+          record-reader: json-reader
+          record-writer: json-writer
+          success: SELECT * FROM FLOWFILE WHERE status = 'OK'
+          failure: SELECT * FROM FLOWFILE WHERE status <> 'OK'
+      - id: log_success
+        name: LogAttribute (Success)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_failure
+        name: LogAttribute (Failure)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Update
+        source: generate
+        destination: update
+        relationships:
+        - success
+        back_pressure_object_threshold: 1000
+      - name: Update to Query
+        source: update
+        destination: query
+        relationships:
+        - success
+      - name: Query to Log Success
+        source: query
+        destination: log_success
+        relationships:
+        - success
+      - name: Query to Log Failure
+        source: query
+        destination: log_failure
+        relationships:
+        - failure
+      auto_terminate:
+        log_success:
+        - success
+        log_failure:
+        - success
+    - name: MediumWorkflow
+      description: 'Overview: Attribute-based routing with RouteOnAttribute to demonstrate
+        branching without record processors.
+
+        Technical: GenerateFlowFile emits a FlowFile and an attribute (route=success).
+        RouteOnAttribute defines a
+
+        ''success'' property using NiFi Expression Language to evaluate the attribute.
+        Success goes to a log; unmatched
+
+        and failure go to a separate log.
+
+        '
+      processors:
+      - id: generate
+        name: Generate FlowFile
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        scheduling_period: 1 min
+        properties:
+          Batch Size: '1'
+          Data Format: Text
+          Custom Text: route=success
+      - id: route
+        name: Route On Attribute
+        type: org.apache.nifi.processors.standard.RouteOnAttribute
+        properties:
+          success: ${route:equals('success')}
+      - id: log_success
+        name: LogAttribute (Success)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_failure
+        name: LogAttribute (Failure)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Route
+        source: generate
+        destination: route
+        relationships:
+        - success
+      - name: Route to Success Log
+        source: route
+        destination: log_success
+        relationships:
+        - success
+      - name: Route to Failure Log
+        source: route
+        destination: log_failure
+        relationships:
+        - unmatched
+        - failure
+      auto_terminate:
+        log_success:
+        - success
+        log_failure:
+        - success
+    - name: ComplexWorkflow
+      description: 'Overview: Record-generation, enrichment, and classification into
+        high/low streams using QueryRecord.
+
+        Technical: GenerateRecord emits fields sensor, reading_value, and status.
+        UpdateRecord normalizes status and
+
+        fills missing sensor. QueryRecord defines ''high'' and ''low'' queries to
+        split by a threshold. Failure is routed
+
+        to a dedicated log. Requires JsonTreeReader and JsonRecordSetWriter controller
+        services.
+
+        '
+      processors:
+      - id: generate
+        name: GenerateRecord
+        type: org.apache.nifi.processors.standard.GenerateRecord
+        scheduling_period: 1 min
+        properties:
+          record-writer: json-writer
+          number-of-records: '1'
+          nullable-fields: 'false'
+          null-percentage: '0.0'
+          schema-text: "{\n  \"type\": \"record\",\n  \"name\": \"reading\",\n  \"\
+            fields\": [\n    { \"name\": \"sensor\", \"type\": \"string\" },\n   \
+            \ { \"name\": \"reading_value\", \"type\": \"double\" },\n    { \"name\"\
+            : \"status\", \"type\": \"string\" }\n  ]\n}\n"
+      - id: enrich
+        name: UpdateRecord
+        type: org.apache.nifi.processors.standard.UpdateRecord
+        properties:
+          Record Reader: json-reader
+          Record Writer: json-writer
+          /status: UPPER(/status)
+          /sensor: COALESCE(/sensor, 'unknown')
+      - id: categorize
+        name: QueryRecord
+        type: org.apache.nifi.processors.standard.QueryRecord
+        properties:
+          record-reader: json-reader
+          record-writer: json-writer
+          high: SELECT * FROM FLOWFILE WHERE reading_value >= 50
+          low: SELECT * FROM FLOWFILE WHERE reading_value < 50
+      - id: log_high
+        name: LogAttribute (High)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_low
+        name: LogAttribute (Low)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_failure
+        name: LogAttribute (Failure)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Enrich
+        source: generate
+        destination: enrich
+        relationships:
+        - success
+      - name: Enrich to Categorize
+        source: enrich
+        destination: categorize
+        relationships:
+        - success
+      - name: Categorize to Log High
+        source: categorize
+        destination: log_high
+        relationships:
+        - high
+      - name: Categorize to Log Low
+        source: categorize
+        destination: log_low
+        relationships:
+        - low
+      - name: Categorize to Failure
+        source: categorize
+        destination: log_failure
+        relationships:
+        - failure
+      auto_terminate:
+        log_high:
+        - success
+        log_low:
+        - success
+        log_failure:
+        - success
+  - name: Group Three
+    description: HTTP and composite flows
+    process_groups:
+    - name: ContentAttributeRouteWorkflow
+      description: 'Overview: Builds minimal JSON from attributes and routes content
+        using a regex-based RouteOnContent.
+
+        Technical: UpdateAttribute sets ''status'' and ''message''; AttributesToJSON
+        writes them into the FlowFile content
+
+        (Destination=flowfile-content). RouteOnContent exposes a dynamic ''ok'' relationship
+        matching status=OK; all
+
+        other cases go to unmatched/failure and are logged. This avoids external systems
+        while exercising content routing.
+
+        '
+      processors:
+      - id: generate
+        name: Generate FlowFile
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        scheduling_period: 1 min
+        properties:
+          Batch Size: '1'
+          Data Format: Text
+          Custom Text: '{}'
+      - id: update
+        name: UpdateAttribute (status/message)
+        type: org.apache.nifi.processors.attributes.UpdateAttribute
+        properties:
+          status: ok
+          message: hello
+      - id: to_json
+        name: AttributesToJSON (to content)
+        type: org.apache.nifi.processors.standard.AttributesToJSON
+        properties:
+          Destination: flowfile-content
+          Include Core Attributes: 'false'
+          Attributes List: status,message
+      - id: route
+        name: RouteOnContent (status OK)
+        type: org.apache.nifi.processors.standard.RouteOnContent
+        properties:
+          ok: (?s).*"status"\s*:\s*"OK".*
+      - id: log_ok
+        name: LogAttribute (OK)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_other
+        name: LogAttribute (Other)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Update
+        source: generate
+        destination: update
+        relationships:
+        - success
+      - name: AttributesToJSON
+        source: update
+        destination: to_json
+        relationships:
+        - success
+      - name: JSON to Route
+        source: to_json
+        destination: route
+        relationships:
+        - success
+      - name: Route to OK
+        source: route
+        destination: log_ok
+        relationships:
+        - ok
+      - name: Route to Other
+        source: route
+        destination: log_other
+        relationships:
+        - unmatched
+        - failure
+      auto_terminate:
+        log_ok:
+        - success
+        log_other:
+        - success
+    - name: BigWorkflow
+      description: 'Overview: A larger, multi-stage pipeline with nested process groups,
+        ports, and a mix of record transforms, routing, compression, and multiple
+        HTTP ingress groups.
+
+        Technical: Parent orchestrates across two child groups (TransformGroup, ClassifierGroup)
+        using input/output ports. Two additional HTTP echo groups run on ports 18082
+        and 18083.
+
+        '
+      processors:
+      - id: src-seed
+        name: Generate FlowFile (seed)
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        properties:
+          Batch Size: '1'
+      - id: sink-ok
+        name: OK Sink
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: sink-other
+        name: Other Sink
+        type: org.apache.nifi.processors.standard.LogAttribute
+      process_groups:
+      - name: TransformGroup
+        input_ports:
+        - id: tg-in
+          name: TG IN
+        output_ports:
+        - id: tg-out
+          name: TG OUT
+        processors:
+        - id: tg-update
+          name: UpdateAttribute (enrich)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            route: success
+        - id: tg-convert
+          name: ConvertRecord (json->csv)
+          type: org.apache.nifi.processors.standard.ConvertRecord
+          properties:
+            Record Reader: json-reader
+            Record Writer: csv-writer
+        - id: tg-merge
+          name: MergeRecord (3)
+          type: org.apache.nifi.processors.standard.MergeRecord
+          properties:
+            Record Reader: csv-reader
+            Record Writer: csv-writer
+            Minimum Number of Records: '3'
+            Maximum Number of Records: '3'
+        - id: tg-compress
+          name: CompressContent (gzip)
+          type: org.apache.nifi.processors.standard.CompressContent
+          properties:
+            Compression Format: gzip
+        connections:
+        - name: IN to Update
+          source: tg-in
+          destination: tg-update
+          relationships: []
+        - name: Update to Convert
+          source: tg-update
+          destination: tg-convert
+          relationships:
+          - success
+        - name: Convert to Merge
+          source: tg-convert
+          destination: tg-merge
+          relationships:
+          - success
+        - name: Merge to Compress
+          source: tg-merge
+          destination: tg-compress
+          relationships:
+          - merged
+        - name: Compress to OUT
+          source: tg-compress
+          destination: tg-out
+          relationships:
+          - success
+      - name: ClassifierGroup
+        input_ports:
+        - id: cg-in
+          name: CG IN
+        output_ports:
+        - id: cg-ok
+          name: CG OK
+        - id: cg-other
+          name: CG OTHER
+        processors:
+        - id: cg-query
+          name: QueryRecord (ok/other)
+          type: org.apache.nifi.processors.standard.QueryRecord
+          properties:
+            record-reader: csv-reader
+            record-writer: csv-writer
+            ok: SELECT * FROM FLOWFILE WHERE route = 'success'
+            other: SELECT * FROM FLOWFILE WHERE route <> 'success'
+        connections:
+        - name: IN to Query
+          source: cg-in
+          destination: cg-query
+          relationships: []
+        - name: Query to OK port
+          source: cg-query
+          destination: cg-ok
+          relationships:
+          - ok
+        - name: Query to OTHER port
+          source: cg-query
+          destination: cg-other
+          relationships:
+          - other
+          - failure
+          - unmatched
+      - name: HttpEcho18082
+        description: Simple HTTP echo group on port 18082
+        processors:
+        - id: http-req-82
+          name: HandleHttpRequest(18082)
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: '18082'
+            Allowed Paths: /echo
+            HTTP Context Map: http-context-map
+        - id: http-resp-82
+          name: HandleHttpResponse(18082)
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: '204'
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+        connections:
+        - name: 82 Request to Response
+          source: http-req-82
+          destination: http-resp-82
+          relationships:
+          - success
+      - name: HttpEcho18083
+        description: Simple HTTP echo group on port 18083
+        processors:
+        - id: http-req-83
+          name: HandleHttpRequest(18083)
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: '18083'
+            Allowed Paths: /echo
+            HTTP Context Map: http-context-map
+        - id: http-resp-83
+          name: HandleHttpResponse(18083)
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: '204'
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+        connections:
+        - name: 83 Request to Response
+          source: http-req-83
+          destination: http-resp-83
+          relationships:
+          - success
+      connections:
+      - name: Seed to Transform
+        source: src-seed
+        destination: tg-in
+        relationships:
+        - success
+      - name: Transform to Classifier
+        source: tg-out
+        destination: cg-in
+        relationships: []
+      - name: Classifier OK to Parent OK Sink
+        source: cg-ok
+        destination: sink-ok
+        relationships: []
+      - name: Classifier OTHER to Parent Other Sink
+        source: cg-other
+        destination: sink-other
+        relationships: []
+      auto_terminate:
+        sink-ok:
+        - success
+        sink-other:
+        - success
+    - name: TwoBranchWorkflow
+      description: 'Overview: Splits content and routes into two parallel branches
+        based on fragment index parity.
+
+        Technical: GenerateFlowFile emits multi-line text; SplitText splits into single-line
+        FlowFiles (fragment.index set).
+
+        RouteOnAttribute sends even indices to Branch A and odd indices to Branch
+        B using Expression Language modulo tests.
+
+        Each branch logs independently. Demonstrates multi-branch fan-out.
+
+        '
+      processors:
+      - id: generate
+        name: Generate FlowFile (multiline)
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        properties:
+          Batch Size: '1'
+          Data Format: Text
+          Custom Text: 'one
+
+            two
+
+            three
+
+            four
+
+            '
+      - id: split
+        name: SplitText (1 line)
+        type: org.apache.nifi.processors.standard.SplitText
+        properties:
+          Line Split Count: '1'
+          Remove Trailing Newlines: 'true'
+      - id: route
+        name: RouteOnAttribute (even/odd)
+        type: org.apache.nifi.processors.standard.RouteOnAttribute
+        properties:
+          branchA: ${fragment.index:mod(2):equals(0)}
+          branchB: ${fragment.index:mod(2):equals(1)}
+      - id: logA
+        name: LogAttribute (A)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: logB
+        name: LogAttribute (B)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Split
+        source: generate
+        destination: split
+        relationships:
+        - success
+      - name: Split to Route
+        source: split
+        destination: route
+        relationships:
+        - splits
+      - name: Route to A
+        source: route
+        destination: logA
+        relationships:
+        - branchA
+      - name: Route to B
+        source: route
+        destination: logB
+        relationships:
+        - branchB
+      auto_terminate:
+        logA:
+        - success
+        logB:
+        - success
+    - name: HttpServerWorkflow
+      description: 'Overview: Exposes a minimal HTTP endpoint inside NiFi using HandleHttpRequest/HandleHttpResponse.
+
+        Technical: HandleHttpRequest listens on port 18081 and hands off a FlowFile;
+        HandleHttpResponse returns 204 with
+
+        Content-Type header. Failure routes to a log. Demonstrates request/response
+        correlation within a single PG without
+
+        external systems.
+
+        '
+      processors:
+      - id: http-request
+        name: HandleHttpRequest
+        type: org.apache.nifi.processors.standard.HandleHttpRequest
+        properties:
+          Listening Port: '18081'
+          Allowed Paths: /test
+          HTTP Context Map: http-context-map
+      - id: http-response
+        name: HandleHttpResponse
+        type: org.apache.nifi.processors.standard.HandleHttpResponse
+        properties:
+          HTTP Status Code: '204'
+          Content-Type: text/plain
+          HTTP Context Map: http-context-map
+      connections:
+      - name: Request to Response
+        source: http-request
+        destination: http-response
+        relationships:
+        - success
+      auto_terminate: {}
+  - name: Group Two
+    description: Branching and batching
+    process_groups:
+    - name: NestedWorkflow
+      description: 'Overview: Demonstrates a nested process group without ports.
+
+        Technical: Parent group contains a single child group ''SubFunction'' with
+        GenerateFlowFile feeding LogAttribute.
+
+        Tests nested creation, layout, and teardown sequencing during purge.
+
+        '
+      processors: []
+      process_groups:
+      - name: SubFunction
+        processors:
+        - id: nested-sub-generate
+          name: Generate FlowFile (Sub)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          scheduling_period: 1 min
+          properties:
+            Batch Size: '1'
+        - id: nested-sub-log
+          name: LogAttribute (Sub)
+          type: org.apache.nifi.processors.standard.LogAttribute
+        connections:
+        - name: Sub Generate to Log
+          source: nested-sub-generate
+          destination: nested-sub-log
+          relationships:
+          - success
+        auto_terminate:
+          nested-sub-log:
+          - success
+    - name: NestedPortsWorkflow
+      description: 'Overview: Demonstrates child process group ports and cross-boundary
+        connections.
+
+        Technical: Parent GenerateFlowFile connects to the child''s input port; inside
+        the child, a LogAttribute emits
+
+        to the child''s output port; the parent connects from that output port to
+        a result logger. Validates port
+
+        creation, wiring, and layout without overlap between parent processors and
+        child PG.
+
+        '
+      processors:
+      - id: nested-source
+        name: Nested Source
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        scheduling_period: 1 min
+        properties:
+          Batch Size: '1'
+          Data Format: Text
+          Custom Text: nested payload
+      - id: nested-result-log
+        name: Nested Result Logger
+        type: org.apache.nifi.processors.standard.LogAttribute
+      process_groups:
+      - name: NestedPortsSubflow
+        input_ports:
+        - id: nested-sub-in
+          name: Nested Sub In
+        output_ports:
+        - id: nested-sub-out
+          name: Nested Sub Out
+        processors:
+        - id: nested-sub-log
+          name: LogAttribute (Nested Sub)
+          type: org.apache.nifi.processors.standard.LogAttribute
+        connections:
+        - name: Sub In to Log
+          source: nested-sub-in
+          destination: nested-sub-log
+          relationships: []
+        - name: Sub Log to Out
+          source: nested-sub-log
+          destination: nested-sub-out
+          relationships:
+          - success
+      connections:
+      - name: Source to Subflow
+        source: nested-source
+        destination: nested-sub-in
+        relationships:
+        - success
+      - name: Subflow to Result
+        source: nested-sub-out
+        destination: nested-result-log
+        relationships: []
+      auto_terminate:
+        nested-result-log:
+        - success
+    - name: PathBranchWorkflow
+      description: 'Overview: Attribute-based branching using RouteOnAttribute with
+        ''east'' and ''west'' routes plus unmatched.
+
+        Technical: Generate sets ''route'' attribute; RouteOnAttribute defines properties
+        ''east'' and ''west'' with NiFi
+
+        expression-language predicates; sinks are auto-terminated. Layout is router-centered
+        with sinks stacked right.
+
+        '
+      processors:
+      - id: generate
+        name: Generate FlowFile (with route)
+        type: org.apache.nifi.processors.standard.GenerateFlowFile
+        scheduling_period: 1 min
+        properties:
+          Batch Size: '1'
+          Data Format: Text
+          Custom Text: example payload
+          route: east
+      - id: route
+        name: Route On Attribute (path)
+        type: org.apache.nifi.processors.standard.RouteOnAttribute
+        properties:
+          east: ${route:equals('east')}
+          west: ${route:equals('west')}
+      - id: log_east
+        name: LogAttribute (east)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_west
+        name: LogAttribute (west)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_unmatched
+        name: LogAttribute (unmatched)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Route
+        source: generate
+        destination: route
+        relationships:
+        - success
+      - name: Route to East
+        source: route
+        destination: log_east
+        relationships:
+        - east
+      - name: Route to West
+        source: route
+        destination: log_west
+        relationships:
+        - west
+      - name: Route to Unmatched/Failure
+        source: route
+        destination: log_unmatched
+        relationships:
+        - unmatched
+        - failure
+      auto_terminate:
+        log_east:
+        - success
+        log_west:
+        - success
+        log_unmatched:
+        - success
+    - name: SplitMergeWorkflow
+      description: 'Overview: Demonstrates record batch fan-out and fan-in using SplitRecord
+        and MergeRecord.
+
+        Technical: GenerateRecord emits 9 records; SplitRecord creates 3 splits of
+        3 records each via the
+
+        ''Records Per Split'' property; MergeRecord consumes the splits and emits
+        a single 3-record FlowFile per group
+
+        using ''Minimum/Maximum Number of Records''. Original and merged outputs are
+        logged via dedicated sinks.
+
+        '
+      processors:
+      - id: generate
+        name: Generate Records (batch)
+        type: org.apache.nifi.processors.standard.GenerateRecord
+        scheduling_period: 1 min
+        properties:
+          record-writer: json-writer
+          number-of-records: '9'
+          nullable-fields: 'false'
+          null-percentage: '0.0'
+          schema-text: "{\n  \"type\": \"record\",\n  \"name\": \"reading\",\n  \"\
+            fields\": [\n    { \"name\": \"sensor\", \"type\": \"string\" },\n   \
+            \ { \"name\": \"value\",  \"type\": \"int\" }\n  ]\n}\n"
+      - id: split
+        name: SplitRecord (3 per)
+        type: org.apache.nifi.processors.standard.SplitRecord
+        properties:
+          Record Reader: json-reader
+          Record Writer: json-writer
+          Records Per Split: '3'
+      - id: merge
+        name: MergeRecord (3)
+        type: org.apache.nifi.processors.standard.MergeRecord
+        properties:
+          Record Reader: json-reader
+          Record Writer: json-writer
+          Minimum Number of Records: '3'
+          Maximum Number of Records: '3'
+      - id: log_original
+        name: LogAttribute (original)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      - id: log_merged
+        name: LogAttribute (merged)
+        type: org.apache.nifi.processors.standard.LogAttribute
+      connections:
+      - name: Generate to Split
+        source: generate
+        destination: split
+        relationships:
+        - success
+      - name: Split to Merge
+        source: split
+        destination: merge
+        relationships:
+        - splits
+      - name: Split original to Log
+        source: split
+        destination: log_original
+        relationships:
+        - original
+      - name: Merge to Log
+        source: merge
+        destination: log_merged
+        relationships:
+        - merged
+      auto_terminate:
+        log_original:
+        - success
+        log_merged:
+        - success
