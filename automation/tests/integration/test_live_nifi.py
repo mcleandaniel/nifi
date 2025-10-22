@@ -206,3 +206,22 @@ def test_deploy_flow_spec(nifi_environment, spec_path: Path):
     state_counts = count_processor_states(nifi_client)
     stopped = state_counts.get("STOPPED", 0)
     assert stopped == 0, f"Found {stopped} stopped processors: {state_counts}"
+
+
+@pytest.mark.parametrize("spec_path", FLOW_FILES, ids=lambda p: p.stem)
+def test_root_pg_count_matches_spec(nifi_environment, spec_path: Path):
+    """Compare the number of root-level child PGs on the canvas with the spec's root child count.
+
+    This guards against partial deploys (e.g., missing DefaultFlow from legacy root list)
+    and ensures grouped specs are flattened correctly.
+    """
+    client, service_map = nifi_environment
+    spec = load_flow_spec(spec_path)
+    # Deploy the spec in this test's clean environment
+    deploy_flow_from_file(client, spec_path, controller_service_map=service_map)
+    expected = len(spec.root_group.child_groups)
+
+    flow_entity = client._client.get("/flow/process-groups/root").json()
+    group_flow = flow_entity["processGroupFlow"]["flow"]
+    actual = len(group_flow.get("processGroups") or [])
+    assert actual == expected, f"Root PG count mismatch: NiFi={actual} vs Spec={expected}"

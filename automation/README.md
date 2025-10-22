@@ -26,9 +26,15 @@ done
 
 Then continue with the steps below.
 1. **Create and activate the per-project virtual environment (from repo root)**
+   - If you are already in a virtual environment (`$VIRTUAL_ENV` is set), keep using it and skip creation.
+   - Otherwise, create/activate the project venv:
    ```bash
-   uv venv automation/.venv --clear   # creates/refreshes automation/.venv
-   source automation/.venv/bin/activate
+   if [ -z "${VIRTUAL_ENV:-}" ]; then
+     uv venv automation/.venv --clear   # creates/refreshes automation/.venv
+     source automation/.venv/bin/activate
+   else
+     echo "Using active venv: $VIRTUAL_ENV"
+   fi
    ```
 
 2. **Install the package (editable) with dev tooling**
@@ -63,8 +69,8 @@ Then continue with the steps below.
   bash automation/scripts/run_integration_suite.sh
   ```
   This script purges NiFi once (via the CLI), deploys `automation/flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
-  services, and fails immediately if NiFi reports any invalid processors. Leave NiFi untouched after the run so the
-  final deployed state is available for inspection.
+  services, and fails immediately if NiFi reports any invalid processors. It ends by starting processors so the final
+  deployed state is RUNNING for operator inspection.
    > Codex sandbox note: if you execute this from a sandboxed session, enable network access first  
    > (`codex --sandbox workspace-write -c sandbox_workspace_write.network_access=true`). Otherwise the initial
    > `/access/token` call fails with `[Errno 1] Operation not permitted`, and the purge step never starts.

@@ -55,7 +55,8 @@ clitool <verb> <target> [args]
   - App layer calls adapters; adapters call existing backend modules (unchanged).
 
 ## Status Model (Roll-ups)
-- **Processors:** acceptable `RUNNING`, `STOPPED`; transitional `STARTING`, `STOPPING`; severity `INVALID > STOPPING > STARTING > RUNNING = STOPPED`.
+- **Processors:** transitional `STARTING`, `STOPPING`; severity `INVALID > STOPPING > STARTING > STOPPED > RUNNING`.
+  - Rationale: STOPPED must rank worse than RUNNING so roll-ups surface when any processors are not running. Operators expect the platform to end RUNNING post-deploy/admin unless explicitly left otherwise by a test.
 - **Controllers:** acceptable `ENABLED`, `DISABLED`; transitional `ENABLING`, `DISABLING`; severity `INVALID > DISABLING > ENABLING > ENABLED = DISABLED`.
 - **Connections:** severity `BLOCKED > HEALTHY > EMPTY`; `EMPTY` = zero queued items, `HEALTHY` = queued items without backpressure.
 - **Flow:** `INVALID` if any invalid; `TRANSITION` if any transitional; `UP` if processors RUNNING and controllers ENABLED; `DOWN` if processors STOPPED and controllers DISABLED; otherwise `HEALTHY`.

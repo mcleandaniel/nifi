@@ -79,3 +79,8 @@ def test_cli_start_stop_enable_disable() -> None:
     assert out["data"]["worst"] in {"DISABLED", "ENABLED"}
     out = _run_cli(["enable", "controllers", "--output", "json"])
     assert out["data"]["worst"] == "ENABLED"
+
+    # Leave the environment in a running state for subsequent workflows
+    _run_cli(["start", "ports", "--output", "json"])
+    out = _run_cli(["start", "processors", "--output", "json"])
+    assert out["data"]["worst"] == "RUNNING"

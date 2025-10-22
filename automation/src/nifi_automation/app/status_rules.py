@@ -5,12 +5,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Iterable, Tuple
 
+"""
+Processor severity policy
+
+Rationale update: We treat STOPPED as a non-acceptable steady state for general
+"flow up" checks. Operators expect the platform to end RUNNING after deploy and
+after admin flows complete unless a test explicitly leaves it otherwise. To
+surface this clearly in roll-ups, STOPPED must rank worse than RUNNING so the
+"worst" token reports STOPPED when any processors are not running.
+
+Severity order (high → low): INVALID > STOPPING > STARTING > STOPPED > RUNNING
+"""
 PROCESSOR_SEVERITY = {
-    "INVALID": 3,
-    "STOPPING": 2,
-    "STARTING": 1,
+    "INVALID": 4,
+    "STOPPING": 3,
+    "STARTING": 2,
+    "STOPPED": 1,
     "RUNNING": 0,
-    "STOPPED": 0,
 }
 
 CONTROLLER_SEVERITY = {

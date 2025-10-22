@@ -1,5 +1,30 @@
 process_group:
   name: NiFi Flow
+  process_groups:
+  - name: DefaultFlow
+    description: |
+      Overview: Default minimal flow to preserve backward compatibility with legacy deployers
+      that read `process_group.process_groups` at the root.
+      Technical: A GenerateFlowFile routes success to a LogAttribute. Sinks auto-terminate.
+    processors:
+    - id: default-generate
+      name: Generate FlowFile (Default)
+      type: org.apache.nifi.processors.standard.GenerateFlowFile
+      scheduling_period: 1 min
+      properties:
+        Batch Size: '1'
+    - id: default-log
+      name: Log Attribute (Default)
+      type: org.apache.nifi.processors.standard.LogAttribute
+    connections:
+    - name: Generate to Log
+      source: default-generate
+      destination: default-log
+      relationships:
+      - success
+    auto_terminate:
+      default-log:
+      - success
   groups:
   - name: Group One
     description: Core and simple flows

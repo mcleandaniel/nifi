@@ -19,6 +19,17 @@ Authoring pipeline (MD → stub → YAML → deploy)
   - Input: group MD + stub, Output: full YAML fragment (validated)
   - Include “dos & don’ts” and examples for common patterns
 - Optionally add a checker that flags fragments with `phase != ready` during build to prevent accidental deploys
+
+Deploy warnings
+- Add non-blocking warnings in `deploy_adapter.deploy_flow` when any top-level child PG or fragment carries `phase != ready`.
+  - Surface as `result["warnings"]` to the CLI. Do not fail the deploy.
+
+Reverse tests (leave env as found)
+- Establish a convention in integration tests to undo side-effects at test end:
+  - If a test stops processors/ports or disables controllers, it must start/enable them at the end unless a subsequent test depends on the changed state.
+  - For multi-step sequences, only the last test restores the environment.
+- Add a final assertion in admin-ops test to leave processors RUNNING and ports RUNNING.
+- Consider a shared fixture/helper to capture state and restore on teardown for more complex cases.
 - Dev ergonomics: optional pre-commit hook that runs the sync script (non-blocking) and prints a diff hint when out of sync.
 - Acceptance criteria:
   - PRs that change descriptions in YAML/doc pass the CI guard only when in sync.

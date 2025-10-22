@@ -45,3 +45,6 @@ if folders:
 else:
   print('[flows] no external flow tests to run')
 PY
+
+# Ensure processors end RUNNING for operator convenience
+automation/.venv/bin/python -m nifi_automation.cli.main start processors --output json || true

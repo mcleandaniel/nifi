@@ -452,7 +452,40 @@ def load_flow_spec(path: Path) -> FlowSpec:
     if not isinstance(pg_info, Mapping):
         raise FlowDeploymentError("Top-level 'process_group' is required")
 
-    root_group = _parse_process_group(pg_info)
+    # Flatten grouped root structure into a single process_groups list while preserving order.
+    # Accept both legacy process_group.process_groups and grouped process_group.groups[*].process_groups.
+    root_map: Dict[str, Any] = dict(pg_info)
+    combined_children: List[Mapping[str, Any]] = []
+    seen_names: Set[str] = set()
+    # Legacy children first
+    for child in list(root_map.get("process_groups") or []):
+        if not isinstance(child, Mapping):
+            raise FlowDeploymentError("process_groups entries must be mappings")
+        nm = child.get("name")
+        if not isinstance(nm, str) or not nm:
+            raise FlowDeploymentError("process_groups entries must include 'name'")
+        if nm in seen_names:
+            raise FlowDeploymentError(f"Duplicate top-level process group '{nm}' across groups or legacy list")
+        seen_names.add(nm)
+        combined_children.append(child)
+    # Then grouped children
+    for grp in list(root_map.get("groups") or []):
+        if not isinstance(grp, Mapping):
+            raise FlowDeploymentError("groups entries must be mappings")
+        for child in list(grp.get("process_groups") or []):
+            if not isinstance(child, Mapping):
+                raise FlowDeploymentError("process_groups entries must be mappings")
+            nm = child.get("name")
+            if not isinstance(nm, str) or not nm:
+                raise FlowDeploymentError("process_groups entries must include 'name'")
+            if nm in seen_names:
+                raise FlowDeploymentError(f"Duplicate top-level process group '{nm}' across groups or legacy list")
+            seen_names.add(nm)
+            combined_children.append(child)
+    root_map["process_groups"] = combined_children
+    root_map.pop("groups", None)
+
+    root_group = _parse_process_group(root_map)
     if root_group.name != "NiFi Flow":
         raise FlowDeploymentError("Root process group must be named 'NiFi Flow'")
     return FlowSpec(root_group=root_group)
