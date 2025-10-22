@@ -107,3 +107,10 @@ clitool <verb> <target> [args]
   - A CLI runtime config (e.g. `config/cli.toml`) to persist TLS settings, defaults such as `verify_ssl`, `ca_bundle`, timeouts, and preferred output modes.
   - A separate automation defaults file to manage controller/processor property overrides that apply before deployments.
 - Extend TLS handling to support custom trust stores in addition to the simple `verify_ssl` boolean used today.
+- Add `validate topology` subcommand that compares the deployed NiFi topology against a flow spec and fails on:
+  - Missing processors (by name/type), ports (by name), or connections (by endpoints, including cross-boundary).
+  - Count mismatches for processors, connections, ports, and child groups.
+  - Include JSON details with exact paths and issues for CI gating.
+- Add a layout validation step (no component overlaps, left-to-right guidance) that can run after deploy and in CI:
+  - Reuse `infra.layout_checker.check_layout()`; expose via CLI (e.g., `validate layout`).
+  - Fail on overlaps; optionally warn on left-to-right violations.

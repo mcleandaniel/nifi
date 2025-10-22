@@ -13,6 +13,8 @@ def test_normalize_target_aliases() -> None:
         "processors": "processors",
         "proc": "processors",
         "procs": "processors",
+        "port": "ports",
+        "ports": "ports",
         "controller": "controllers",
         "controllers": "controllers",
         "cont": "controllers",

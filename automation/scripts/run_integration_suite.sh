@@ -24,6 +24,8 @@ automation/.venv/bin/python -m nifi_automation.cli.main purge flow --output json
 automation/.venv/bin/pytest automation/tests/integration/test_live_nifi.py
 # Then run layout checks against the deployed instance
 automation/.venv/bin/pytest automation/tests/integration/test_layout_live.py
+# Exercise CLI admin operations (start/stop processors & ports, enable/disable controllers)
+automation/.venv/bin/pytest automation/tests/integration/test_cli_admin_ops_live.py
 # Start processors for externally triggered flows
 automation/.venv/bin/python -m nifi_automation.cli.main up flow --output json || true
 # Finally, run flow-triggered external tests for flows present in the aggregate spec

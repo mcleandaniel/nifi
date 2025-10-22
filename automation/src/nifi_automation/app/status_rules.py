@@ -27,6 +27,15 @@ CONNECTION_SEVERITY = {
     "EMPTY": 0,
 }
 
+# Ports rollup: treat RUNNING and STOPPED (disabled) as acceptable; anything
+# else is transitional/invalid. We still compute worst severity for visibility.
+PORT_SEVERITY = {
+    "INVALID": 3,
+    "RUNNING": 0,
+    "STOPPED": 0,
+    "DISABLED": 0,
+}
+
 
 @dataclass(slots=True)
 class ProcessorRollup:
@@ -86,7 +95,10 @@ def rollup_processors(items: Iterable[Dict[str, object]]) -> ProcessorRollup:
         elif state not in {"RUNNING", "STOPPED"}:
             has_transitional = True
     worst = _worst_state(counts, PROCESSOR_SEVERITY, "RUNNING")
-    all_running = total == 0 or counts.get("RUNNING", 0) == total
+    # Consider zero processors as not "all running" to avoid reporting UP
+    # when nothing is deployed. This forces callers to consider topology
+    # validity separately and prevents false-positives.
+    all_running = total > 0 and counts.get("RUNNING", 0) == total
     all_stopped = total > 0 and counts.get("STOPPED", 0) == total
     return ProcessorRollup(
         worst=worst,
@@ -146,6 +158,28 @@ def rollup_connections(items: Iterable[Dict[str, object]]) -> ConnectionRollup:
         counts[key] = counts.get(key, 0) + 1
     worst = _worst_state(counts, CONNECTION_SEVERITY, "EMPTY")
     return ConnectionRollup(worst=worst, counts=counts, total=total)
+
+
+@dataclass(slots=True)
+class PortRollup:
+    worst: str
+    counts: Dict[str, int]
+    total: int
+    has_invalid: bool
+
+
+def rollup_ports(items: Iterable[Dict[str, object]]) -> PortRollup:
+    counts: Dict[str, int] = {}
+    total = 0
+    has_invalid = False
+    for item in items:
+        state = str(item.get("state", "UNKNOWN")).upper()
+        counts[state] = counts.get(state, 0) + 1
+        total += 1
+        if state == "INVALID":
+            has_invalid = True
+    worst = _worst_state(counts, PORT_SEVERITY, "RUNNING")
+    return PortRollup(worst=worst, counts=counts, total=total, has_invalid=has_invalid)
 
 
 def rollup_flow(processors: ProcessorRollup, controllers: ControllerRollup) -> Tuple[str, Dict[str, object]]:

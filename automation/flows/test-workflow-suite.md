@@ -246,6 +246,13 @@ Technical: UpdateAttribute sets 'status' and 'message'; AttributesToJSON writes 
 other cases go to unmatched/failure and are logged. This avoids external systems while exercising content routing.
 ```
 
+```nifidesc
+name: BigWorkflow
+Overview: A larger, multi-stage pipeline with nested process groups, ports, and a mix of record transforms, routing, compression, and multiple HTTP ingress groups.
+Technical: Parent orchestrates across two child groups (TransformGroup, ClassifierGroup) using input/output ports. Two additional HTTP echo groups run on ports 18082 and 18083.
+```
+
+
 ## 10. HTTP Server Workflow
 ```nifidesc
 name: HttpServerWorkflow

@@ -5,6 +5,7 @@ from nifi_automation.app.status_rules import (
     rollup_controllers,
     rollup_flow,
     rollup_processors,
+    rollup_ports,
 )
 
 
@@ -47,3 +48,26 @@ def test_rollup_flow_rules() -> None:
     proc_transition = rollup_processors([{"state": "STARTING"}])
     status_transition, _ = rollup_flow(proc_transition, ctrl)
     assert status_transition == "TRANSITION"
+
+
+def test_zero_processors_not_up() -> None:
+    # When there are zero processors, do not claim everything is RUNNING
+    proc = rollup_processors([])
+    ctrl = rollup_controllers([{"state": "ENABLED"}])
+    assert proc.total == 0
+    assert proc.all_running is False
+    status, _ = rollup_flow(proc, ctrl)
+    assert status != "UP"
+
+
+def test_rollup_ports_states() -> None:
+    items = [
+        {"state": "RUNNING"},
+        {"state": "STOPPED"},
+        {"state": "DISABLED"},
+    ]
+    roll = rollup_ports(items)
+    assert roll.counts["RUNNING"] == 1
+    assert roll.counts["STOPPED"] == 1
+    assert roll.counts["DISABLED"] == 1
+    assert roll.worst in {"RUNNING", "STOPPED", "DISABLED"}

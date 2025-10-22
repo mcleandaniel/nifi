@@ -40,9 +40,15 @@ def _await_stable_states(config: AppConfig, client) -> None:
 def _collect_flow_status(client):
     processors = status_adapter.fetch_processors(client)["items"]
     controllers = status_adapter.fetch_controllers(client)["items"]
+    ports = status_adapter.fetch_ports(client)["items"]
     proc_roll = rollup_processors(processors)
     ctrl_roll = rollup_controllers(controllers)
+    # Ports are reported separately; for now do not gate flow status on them.
+    from .status_rules import rollup_ports  # local import to avoid cycle
+
+    port_roll = rollup_ports(ports)
     status, details = rollup_flow(proc_roll, ctrl_roll)
+    details["ports"] = {"counts": port_roll.counts, "worst": port_roll.worst}
     return status, proc_roll, ctrl_roll, details
 
 
@@ -59,6 +65,10 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
             purge_adapter.graceful_purge(client)
             _log(config, "[flow] deploying flow specification")
             deploy_result = deploy_adapter.deploy_flow(client, flowfile, dry_run=False)
+            _log(config, "[flow] validating deployed topology against spec")
+            topo = diag_adapter.validate_deployed_topology(client, flowfile)
+            if not topo.get("ok", False):
+                raise ValidationError("Topology validation failed (missing processors or count mismatch)", details={"topology": topo})
             _log(config, "[flow] waiting for deployed components to stabilize")
             _await_stable_states(config, client)
             _log(config, "[flow] enabling controller services")
@@ -114,6 +124,10 @@ def deploy_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
         purge_adapter.graceful_purge(client)
         _log(config, "[flow] deploying flow specification")
         result = deploy_adapter.deploy_flow(client, flowfile, dry_run=False)
+        _log(config, "[flow] validating deployed topology against spec")
+        topo = diag_adapter.validate_deployed_topology(client, flowfile)
+        if not topo.get("ok", False):
+            raise ValidationError("Topology validation failed (missing processors or count mismatch)", details={"topology": topo})
         status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
         connections = status_adapter.fetch_connections(client)["items"]
         conn_roll = rollup_connections(connections)
@@ -196,6 +210,11 @@ def purge_flow(*, config: AppConfig) -> CommandResult:
 def status_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
         status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
+        # Always compute ports and include in data for visibility
+        from .status_rules import rollup_ports  # local import to avoid cycle
+
+        ports = status_adapter.fetch_ports(client)["items"]
+        port_roll = rollup_ports(ports)
         # Attach connection rollup in details for richer status payload
         connections = status_adapter.fetch_connections(client)["items"]
         conn_roll = rollup_connections(connections)
@@ -208,6 +227,7 @@ def status_flow(*, config: AppConfig) -> CommandResult:
             "processors": proc_roll.counts,
             "controllers": ctrl_roll.counts,
             "connections": details.get("connections", {}),
+            "ports": {"counts": port_roll.counts, "worst": port_roll.worst},
         },
         details=details if exit_code != ExitCode.SUCCESS else {},
     )

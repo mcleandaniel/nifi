@@ -1,4 +1,4 @@
-"""Status collection adapters for processors, controllers, and connections."""
+"""Status collection adapters for processors, controllers, connections, and ports."""
 
 from __future__ import annotations
 
@@ -7,7 +7,12 @@ from typing import Any, Dict, Iterable, List
 from ..diagnostics import _walk_process_groups
 from .nifi_client import NiFiClient
 
-__all__ = ["fetch_processors", "fetch_controllers", "fetch_connections"]
+__all__ = [
+    "fetch_processors",
+    "fetch_controllers",
+    "fetch_connections",
+    "fetch_ports",
+]
 
 
 def _path_to_string(path: Iterable[str]) -> str:
@@ -88,6 +93,40 @@ def fetch_connections(client: NiFiClient) -> Dict[str, Any]:
                     "percentUseBytes": _parse_float(snapshot.get("percentUseBytes")),
                     "backpressureObjectThreshold": _parse_int(snapshot.get("backPressureObjectThreshold")),
                     "backpressureDataSizeThreshold": snapshot.get("backPressureDataSizeThreshold"),
+                }
+            )
+    return {"items": items}
+
+
+def fetch_ports(client: NiFiClient) -> Dict[str, Any]:
+    """Return combined input/output ports with their run state."""
+
+    items: List[Dict[str, Any]] = []
+    for path, flow in _walk_process_groups(client):
+        for entity in flow.get("inputPorts") or []:
+            comp = entity.get("component", {})
+            items.append(
+                {
+                    "id": comp.get("id"),
+                    "name": comp.get("name"),
+                    "path": _path_to_string(path),
+                    "state": comp.get("state"),
+                    "portType": "INPUT",
+                    "validationStatus": comp.get("validationStatus"),
+                    "validationErrors": comp.get("validationErrors") or [],
+                }
+            )
+        for entity in flow.get("outputPorts") or []:
+            comp = entity.get("component", {})
+            items.append(
+                {
+                    "id": comp.get("id"),
+                    "name": comp.get("name"),
+                    "path": _path_to_string(path),
+                    "state": comp.get("state"),
+                    "portType": "OUTPUT",
+                    "validationStatus": comp.get("validationStatus"),
+                    "validationErrors": comp.get("validationErrors") or [],
                 }
             )
     return {"items": items}

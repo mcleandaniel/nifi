@@ -7,7 +7,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import click
 
-from ..app import conn_service, ctrl_service, flow_service, proc_service
+from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service
 from ..app.errors import AppError, BadInputError, HTTPError, TimeoutError, ValidationError
 from ..app.models import AppConfig, CommandResult, ExitCode
 from .io import emit_error, emit_result
@@ -38,6 +38,10 @@ DISPATCH_TABLE: Dict[DispatchKey, Handler] = {
     ("truncate", "connections"): conn_service.truncate_all,
     ("status", "connections"): conn_service.status,
     ("inspect", "connections"): conn_service.inspect,
+    ("start", "ports"): port_service.start_all,
+    ("stop", "ports"): port_service.stop_all,
+    ("status", "ports"): port_service.status,
+    ("inspect", "ports"): port_service.inspect,
 }
 
 FLOWFILE_COMMANDS = {("run", "flow"), ("deploy", "flow")}
@@ -102,7 +106,29 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
     raise click.exceptions.Exit(code=int(exit_code))
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.command(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help=
+    (
+        "NiFi automation CLI using a simple <verb> <target> grammar.\n\n"
+        "Targets:\n"
+        "  - flow         : deploy/run/purge/status/inspect the overall flow\n"
+        "  - processors   : start/stop/status/inspect all processors\n"
+        "  - controllers  : enable/disable/status/inspect controller services\n"
+        "  - connections  : status/inspect/truncate connection queues\n"
+        "  - ports        : start/stop/status/inspect input/output ports\n\n"
+        "Notes:\n"
+        "  - 'run flow <file>' and 'deploy flow <file>' require a flow YAML path.\n"
+        "  - '--output text' prints the worst token only; '--output json' prints counts and details.\n"
+        "  - 'status flow' JSON includes a ports summary under data.ports (RUNNING/STOPPED/DISABLED).\n\n"
+        "Examples:\n"
+        "  nifi-automation run flow automation/flows/NiFi_Flow.yaml --output json\n"
+        "  nifi-automation status processors --output json\n"
+        "  nifi-automation inspect controllers --output json\n"
+        "  nifi-automation status connections --output json\n"
+        "  nifi-automation truncate connections --output json\n"
+    ),
+)
 @click.argument("verb")
 @click.argument("target_alias")
 @click.argument("operand", required=False)

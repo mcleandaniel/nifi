@@ -7,7 +7,7 @@
       "properties": {
         "schema-access-strategy": "infer-schema"
       },
-      "id": "0894d238-019a-1000-4b06-4f4b1f00f6a3"
+      "id": "0b13749b-019a-1000-dc27-6b4b750b2938"
     },
     {
       "key": "json-writer",
@@ -16,13 +16,31 @@
       "properties": {
         "schema-write-strategy": "no-schema"
       },
-      "id": "0894d709-019a-1000-218a-16926e383c31"
+      "id": "0b1378fb-019a-1000-d480-8a8b10c5baf8"
     },
     {
       "key": "http-context-map",
       "name": "HTTP Context Map",
       "type": "org.apache.nifi.http.StandardHttpContextMap",
-      "id": "0894dbc7-019a-1000-5179-d790d0f6cc97"
+      "id": "0b137d2f-019a-1000-a7c6-c87f81137c60"
+    },
+    {
+      "key": "csv-reader",
+      "name": "CSVReader",
+      "type": "org.apache.nifi.csv.CSVReader",
+      "properties": {
+        "schema-access-strategy": "infer-schema"
+      },
+      "id": "0b137d5f-019a-1000-ca2c-53e70d3d3592"
+    },
+    {
+      "key": "csv-writer",
+      "name": "CSVRecordSetWriter",
+      "type": "org.apache.nifi.csv.CSVRecordSetWriter",
+      "properties": {
+        "schema-write-strategy": "no-schema"
+      },
+      "id": "0b138192-019a-1000-c80e-93996ab6ffdc"
     }
   ]
 }

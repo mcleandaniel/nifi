@@ -23,6 +23,7 @@ CANONICAL_TARGETS = {
     "processors": {"processor", "processors", "proc", "procs"},
     "controllers": {"controller", "controllers", "cont"},
     "connections": {"connection", "connections", "queue", "queues", "conn"},
+    "ports": {"port", "ports"},
 }
 
 ALIAS_TO_CANONICAL: Dict[str, str] = {

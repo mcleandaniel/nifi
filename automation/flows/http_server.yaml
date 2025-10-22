@@ -13,7 +13,7 @@ process_group:
           type: org.apache.nifi.processors.standard.HandleHttpRequest
           properties:
             Listening Port: "18081"
-            Base Path: "/test"
+            Allowed Paths: "/test"
             HTTP Context Map: http-context-map
         - id: http-response
           name: HandleHttpResponse
