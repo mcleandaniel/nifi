@@ -55,6 +55,43 @@ Guidelines
 - The builder assembles the grouped output from `groups-md/` only; it does not read `automation/flows/*.yaml`.
 - Inline `yaml` in MD is a fallback for early drafts — prefer fragment files for ongoing maintenance.
 
+Parameter hints in Markdown (optional)
+- You can add a `nifiparams` fenced block to a group MD file to declare parameters anticipated for workflows in that group. Example:
+  ```
+  ```nifiparams
+  - name: API_URL
+    description: Base endpoint
+    sensitive: false
+    scope: pg
+    used_by:
+      - processor: InvokeHTTP
+        property: Remote URL
+  - name: API_TOKEN
+    description: Token for upstream service
+    sensitive: true
+    source: vault:kv/data/upstream#token
+  ```
+  ```
+- These hints guide humans or LLMs when expanding stubs and can be consumed by the CLI parameter planner in the future.
+
+Controller service Markdown (optional registry)
+- Keep controller service docs under `automation/flows/controllers-md/` (one file per service). Example fenced block:
+  ```
+  ```controller-service
+  name: ExampleHttpClient
+  type: org.apache.nifi.processors.standard.InvokeHTTP
+  description: Client to call Example API
+  parameters:
+    - name: EXAMPLE_USER
+      sensitive: false
+      source: vault:kv/data/example#user
+    - name: EXAMPLE_PASSWORD
+      sensitive: true
+      source: vault:kv/data/example#password
+  ```
+  ```
+- In flow YAML, you may add `doc_refs: ["controllers-md/ExampleHttpClient.md"]` at PG or component level. This is metadata only for now and helps readers locate credentials/usage.
+
 Troubleshooting
 - Missing fragment: the builder prints `[warn] flow '<Name>' not found in groups-md; inserting stub`.
 - Unexpected membership: verify the `nifidesc` blocks have `name: <WorkflowName>` matching the fragment filenames.

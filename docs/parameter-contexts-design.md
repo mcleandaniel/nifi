@@ -154,6 +154,63 @@ Patterns:
 - Implement the hybrid clustering (Jaccard-based) with sticky assignment.
 - Optional: protect against accidental cleartext by requiring external provider for keys matching sensitive heuristics.
 
+## Parameter Hints from Markdown (Design)
+- Rationale: Predict and standardize parameters before YAML is authored, enabling humans or LLMs to fill stubs correctly and the CLI to plan contexts early.
+- Source files:
+  - Group Markdown (`automation/flows/groups-md/Group_*.md`): allow embedding parameter hints near workflow sections.
+  - Controller Markdown registry (`automation/flows/controllers-md/*.md`): describe controller services, their properties, and required parameters (with Vault refs where applicable).
+- Group MD fenced block proposal (optional):
+  ```
+  ```nifiparams
+  - name: API_URL
+    description: Base endpoint for upstream service
+    sensitive: false
+    scope: pg           # pg | global
+    used_by:
+      - processor: InvokeHTTP
+        property: Remote URL
+  - name: API_TOKEN
+    description: Token for upstream service
+    sensitive: true
+    source: vault:kv/data/upstream#token
+    used_by:
+      - processor: InvokeHTTP
+        property: Authentication Token
+  ```
+  ```
+- Controller MD fenced block proposal (optional):
+  ```
+  ```controller-service
+  name: BloombergHttp
+  type: org.apache.nifi.processors.standard.InvokeHTTP
+  description: HTTP client for Bloomberg endpoints
+  parameters:
+    - name: BLOOMBERG_USER
+      sensitive: false
+      source: vault:kv/data/bloomberg#user
+    - name: BLOOMBERG_PASSWORD
+      sensitive: true
+      source: vault:kv/data/bloomberg#password
+  properties:
+    - key: "Remote URL"
+      value: "#{BLOOMBERG_API_URL}"
+  ```
+  ```
+- Ingestion plan:
+  - Extend the parameter planner to scan `nifiparams` blocks and merge with discovered `#{...}` references.
+  - Add a controller registry reader that indexes `controller-service` MD and can be referenced from flows (see below).
+
+## Referencing Controller MD from Flow YAML
+- Flow YAML may optionally include documentation cross-references for clarity:
+  - At PG level: `doc_refs: ["controllers-md/BloombergHttp.md"]`
+  - At processor/service level inside the spec: `doc_refs: ["controllers-md/BloombergHttp.md"]`
+- These references are non-executable metadata in Phase 1; future work may resolve them to enrich the parameter plan and to preconfigure controller services.
+
+## Vault/Secret Reference Conventions
+- Use a simple URI-like convention in MD to reference secrets without embedding values:
+  - `vault:kv/data/path#field` or `db:secrets.schema.table:key`
+- The planner/inspector should surface these references as metadata and omit values. Apply/rotate flows can accept provider-specific flags or defer to NiFi Parameter Providers.
+
 ## Appendix — REST Endpoints Quick Reference
 - `POST /access/token` — obtain access token.
 - `GET /parameter-contexts` — list contexts.

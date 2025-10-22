@@ -24,6 +24,7 @@ CANONICAL_TARGETS = {
     "controllers": {"controller", "controllers", "cont"},
     "connections": {"connection", "connections", "queue", "queues", "conn"},
     "ports": {"port", "ports"},
+    "params": {"param", "params", "parameter", "parameters", "pc", "pcs", "contexts", "parameter-contexts"},
     "layout": {"layout"},
 }
 

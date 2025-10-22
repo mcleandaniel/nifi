@@ -41,15 +41,18 @@ Status: experimental (under development)
         --md-dir automation/flows/groups-md \
         --out automation/flows/groups-md/NiFi_Flow_groups.yaml \
         --root-name "NiFi Flow"`
-   - This assembles a single `NiFi_Flow_groups.yaml` using only `groups-md/`:
-     - Group names/descriptions/ordering from the `.md` files
-     - Child specs from `groups-md/<Group>/flows/*.yaml`
+    - This assembles a single `NiFi_Flow_groups.yaml` using only `groups-md/`:
+      - Group names/descriptions/ordering from the `.md` files
+      - Child specs from `groups-md/<Group>/flows/*.yaml`
+      - (Optional) Parameter hints from `nifiparams` blocks in group MD may be used by tooling in future to plan parameter contexts
    - `NiFi_Flow.yaml` is not modified by this pipeline.
 
 ## Target (After Migration)
 
 - Authors add/update:
   - Group files in `groups-md/*.md` (membership via `nifidesc` blocks)
+  - (Optional) Parameter hints in `nifiparams` blocks in group MD
+  - (Optional) Controller service docs in `automation/flows/controllers-md/*.md`
   - Generate YAML stubs from MD:
     - `python automation/scripts/generate_stubs_from_md.py --md-dir automation/flows/groups-md --out-md-dir automation/flows/groups-md --phase draft`
   - Per‑workflow fragments in `groups-md/<Group>/flows/*.yaml` (edit stubs to full specs; set `phase: ready`)

@@ -7,7 +7,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import click
 
-from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service, layout_service
+from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service, layout_service, param_service
 from ..app.errors import AppError, BadInputError, HTTPError, TimeoutError, ValidationError
 from ..app.models import AppConfig, CommandResult, ExitCode
 from .io import emit_error, emit_result
@@ -43,9 +43,20 @@ DISPATCH_TABLE: Dict[DispatchKey, Handler] = {
     ("status", "ports"): port_service.status,
     ("inspect", "ports"): port_service.inspect,
     ("validate", "layout"): layout_service.validate,
+    ("plan", "params"): param_service.plan,
+    ("apply", "params"): param_service.apply,
+    ("inspect", "params"): param_service.inspect,
+    ("rotate", "params"): param_service.rotate,
 }
 
-FLOWFILE_COMMANDS = {("run", "flow"), ("deploy", "flow")}
+FLOWFILE_COMMANDS = {
+    ("run", "flow"),
+    ("deploy", "flow"),
+    ("plan", "params"),
+    ("apply", "params"),
+    ("inspect", "params"),
+    ("rotate", "params"),
+}
 TRUNCATE_COMMAND = ("truncate", "connections")
 
 

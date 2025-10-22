@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Processor Icon Preview</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif; background:#0b0c10; color:#e6e6e6; }
+      .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:16px; padding:24px; }
+      .card { background:#12131a; border:1px solid #1a1b20; border-radius:12px; padding:12px; text-align:center; }
+      img { width:96px; height:96px; display:block; margin:8px auto; }
+      .name { font-size:12px; color:#b8b9bf; word-break: break-word; }
+    </style>
+  </head>
+  <body>
+    <div class="grid" id="grid"></div>
+    <script>
+      fetch('../svg/manifest.json').then(r=>r.json()).then(m => {
+        const grid = document.getElementById('grid');
+        m.icons.forEach(f => {
+          const name = f.replace(/\.svg$/, '');
+          const div = document.createElement('div');
+          div.className = 'card';
+          const img = document.createElement('img');
+          img.src = '../svg/' + f;
+          const p = document.createElement('div');
+          p.className = 'name';
+          p.textContent = name;
+          div.appendChild(img); div.appendChild(p);
+          grid.appendChild(div);
+        });
+      });
+    </script>
+  </body>
+</html>
+

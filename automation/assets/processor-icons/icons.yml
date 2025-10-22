@@ -1,0 +1,81 @@
+processors:
+  - name: GenerateFlowFile
+    category: source
+    glyph: bolt
+
+  - name: UpdateAttribute
+    category: transform
+    glyph: gear
+
+  - name: RouteOnAttribute
+    category: route
+    glyph: split-route
+
+  - name: LogAttribute
+    category: utility
+    glyph: log
+
+  - name: ReplaceText
+    category: transform
+    glyph: replace
+
+  - name: ExtractText
+    category: transform
+    glyph: search
+
+  - name: MergeContent
+    category: transform
+    glyph: merge
+
+  - name: SplitText
+    category: transform
+    glyph: split
+
+  - name: EvaluateJsonPath
+    category: transform
+    glyph: jsonpath
+
+  - name: AttributesToJSON
+    category: transform
+    glyph: json
+
+  - name: ConvertRecord
+    category: transform
+    glyph: convert
+
+  - name: QueryRecord
+    category: compute
+    glyph: query
+
+  - name: MergeRecord
+    category: transform
+    glyph: merge-record
+
+  - name: InvokeHTTP
+    category: network
+    glyph: http
+
+  - name: HandleHttpRequest
+    category: network
+    glyph: http-in
+
+  - name: HandleHttpResponse
+    category: network
+    glyph: http-out
+
+  - name: PublishKafka
+    category: messaging
+    glyph: queue-out
+
+  - name: ConsumeKafka
+    category: messaging
+    glyph: queue-in
+
+  - name: PutFile
+    category: sink
+    glyph: file-out
+
+  - name: GetFile
+    category: source
+    glyph: file-in
+

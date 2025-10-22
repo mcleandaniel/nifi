@@ -20,6 +20,14 @@ Authoring pipeline (MD → stub → YAML → deploy)
   - Include “dos & don’ts” and examples for common patterns
 - Optionally add a checker that flags fragments with `phase != ready` during build to prevent accidental deploys
 
+Markdown-driven parameters and controller docs
+- Define MD schemas and parsers:
+  - `nifiparams` fenced block in group MD for declaring parameter hints (name, description, sensitive, scope, source, used_by).
+  - `controller-service` fenced block in controller MD files under `automation/flows/controllers-md/`.
+- Extend parameter planner to merge MD hints with extracted `#{...}` references and include Vault/DB source refs (omit values).
+- Support `doc_refs` metadata in flow YAML (PG/component) pointing to controller MD files.
+- Add `params plan --with-md` flag to include MD hints and show provenance in output (source=md|discovered).
+
 Deploy warnings
 - Add non-blocking warnings in `deploy_adapter.deploy_flow` when any top-level child PG or fragment carries `phase != ready`.
   - Surface as `result["warnings"]` to the CLI. Do not fail the deploy.

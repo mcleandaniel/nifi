@@ -140,3 +140,27 @@ def test_validate_layout_dispatch(tmp_path: Path) -> None:
             DISPATCH_TABLE[key] = original
     assert result.exit_code == 0
     assert captured.get("called") is True
+
+
+def test_params_plan_dispatch(tmp_path: Path) -> None:
+    # Minimal flow with one PG and one parameter reference
+    flow_spec = tmp_path / "NiFi_Flow.yaml"
+    flow_spec.write_text(
+        (
+            "process_group:\n"
+            "  name: NiFi Flow\n"
+            "  process_groups:\n"
+            "    - name: Example\n"
+            "      processors:\n"
+            "        - id: p1\n          name: X\n          type: t\n          position: [0,0]\n          properties:\n            url: '#{API_URL}'\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["plan", "params", str(flow_spec), "--output", "json"])
+    assert result.exit_code == 0
+    payload = result.stdout.strip()
+    assert payload, result.stderr
+    # Basic sanity checks
+    assert "ctx-all" in payload
+    assert "API_URL" in payload
