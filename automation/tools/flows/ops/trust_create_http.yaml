@@ -1,0 +1,52 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: Tools_Trust_Create_HTTP
+      description: |
+        Create truststore directory via HTTP trigger. Query params: name, type (default JKS), pass.
+        Flow: HandleHttpRequest (/tools/trust/create) → ExecuteStreamCommand (mkdir -p) → HandleHttpResponse.
+      processors:
+        - id: http-req
+          name: HandleHttpRequest
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: "18081"
+            Allowed Paths: "/tools/trust/create"
+            HTTP Context Map: http-context-map
+        - id: exec
+          name: Exec (create)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            HTTP_QUERY: "${http.query.string}"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; mkdir -p "$TS_DIR";
+              QS="${HTTP_QUERY}"; _get(){ echo "$QS" | awk -v K="$1" 'BEGIN{RS="&";FS="="} $1==K{print $2; exit}'; };
+              NM=$(_get name); TY=$(_get type); [ -z "$TY" ] && TY=JKS; if [ -z "$NM" ]; then NM="<unset>"; fi;
+              echo "Ensured $TS_DIR for $NM ($TY)"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: http-resp
+          name: HandleHttpResponse
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: "200"
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+        - id: dbg
+          name: Debug Log (disabled)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          state: DISABLED
+          properties: {}
+      connections:
+        - source: http-req
+          destination: exec
+          relationships: [success]
+        - source: exec
+          destination: http-resp
+          relationships: [output stream]
+        - source: exec
+          destination: dbg
+          relationships: [output stream]

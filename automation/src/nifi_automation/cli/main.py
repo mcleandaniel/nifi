@@ -7,7 +7,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 import click
 
-from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service, layout_service, param_service
+from ..app import conn_service, ctrl_service, flow_service, proc_service, port_service, layout_service, param_service, bulletin_service, describe_service, trust_service
 from ..app.errors import AppError, BadInputError, HTTPError, TimeoutError, ValidationError
 from ..app.models import AppConfig, CommandResult, ExitCode
 from .io import emit_error, emit_result
@@ -47,6 +47,12 @@ DISPATCH_TABLE: Dict[DispatchKey, Handler] = {
     ("apply", "params"): param_service.apply,
     ("inspect", "params"): param_service.inspect,
     ("rotate", "params"): param_service.rotate,
+    ("inspect", "bulletins"): bulletin_service.inspect,
+    ("describe", "processors"): describe_service.describe_processor,
+    ("create", "trust"): trust_service.create,
+    ("add", "trust"): trust_service.add,
+    ("remove", "trust"): trust_service.remove,
+    ("inspect", "trust"): trust_service.inspect,
 }
 
 FLOWFILE_COMMANDS = {
@@ -70,6 +76,7 @@ def _build_config(
     output: str,
     verbose: bool,
     dry_run: bool,
+    proc_type: Optional[str] = None,
 ) -> AppConfig:
     return AppConfig(
         base_url=base_url,
@@ -80,6 +87,7 @@ def _build_config(
         output=output,
         verbose=verbose,
         dry_run=dry_run,
+        proc_type=proc_type,
     )
 
 
@@ -141,6 +149,9 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
         "  nifi-automation status connections --output json\n"
         "  nifi-automation truncate connections --output json\n"
         "  nifi-automation validate layout --output json\n"
+        "\nDocs:\n"
+        "  - docs/trust-store-ops.md (truststore tools, controller service wiring)\n"
+        "  - docs/ssl-trust-helper.md (container-side trust helper script)\n"
     ),
 )
 @click.argument("verb")
@@ -160,6 +171,12 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
 )
 @click.option("--verbose", is_flag=True, help="Enable verbose logging.")
 @click.option("--dry-run", is_flag=True, help="Plan without mutating NiFi.")
+@click.option("--proc-type", "proc_type", default=None, help="Processor type for 'describe processors'.")
+@click.option("--ts-type", "ts_type_opt", default=None, help="Truststore type for 'trust' (PKCS12|JKS|BCFKS).")
+@click.option("--ts-name", "ts_name", default=None, help="Truststore name for 'trust' commands (e.g., local-nifi).")
+@click.option("--ts-password", "ts_pass", default=None, help="Truststore password for 'trust' commands (required).")
+@click.option("--trust-url", "trust_url", default=None, help="Remote URL for 'trust add' (e.g., https://host:port).")
+@click.option("--ts-alias", "ts_alias", default=None, help="Alias name for 'trust add'/'trust remove'.")
 @click.option("--force", is_flag=True, help="Force queue truncation when truncating connections.")
 @click.option("--max", "max_messages", type=int, default=None, help="Max FlowFiles to drop when truncating.")
 def cli_command(
@@ -176,6 +193,12 @@ def cli_command(
     dry_run: bool,
     force: bool,
     max_messages: Optional[int],
+    proc_type: Optional[str],
+    ts_name: Optional[str],
+    ts_pass: Optional[str],
+    trust_url: Optional[str],
+    ts_alias: Optional[str],
+    ts_type_opt: Optional[str],
 ) -> None:
     """Primary CLI entry point implementing the verb/target grammar."""
 
@@ -214,7 +237,29 @@ def cli_command(
         output=output.lower(),
         verbose=verbose,
         dry_run=dry_run if key in FLOWFILE_COMMANDS else False,
+        proc_type=proc_type,
     )
+    # Attach trust parameters for trust target
+    if target.name == "trust":
+        # minimal validation here; handlers will enforce per-verb rules
+        from ..app.models import AppConfig as _AC
+        config = _AC(
+            base_url=config.base_url,
+            username=config.username,
+            password=config.password,
+            token=config.token,
+            timeout_seconds=config.timeout_seconds,
+            output=config.output,
+            verbose=config.verbose,
+            dry_run=False,
+            proc_type=proc_type,
+            # trust fields
+            ts_name=ts_name,
+            ts_pass=ts_pass,
+            ts_type=ts_type_opt,
+            trust_url=trust_url,
+            ts_alias=ts_alias,
+        )
 
     if config.verbose:
         click.echo(f"[cli] executing {verb_normalized} {target.name}", err=True)

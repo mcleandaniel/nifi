@@ -1,0 +1,37 @@
+name: ParamDemoWorkflow
+description: |
+  Demonstrates parameterized InvokeHTTP call using API_URL and API_TOKEN.
+  LOG_LEVEL parameter controls the LogAttribute verbosity.
+processors:
+  - id: pd-generate
+    name: Generate FlowFile
+    type: org.apache.nifi.processors.standard.GenerateFlowFile
+    scheduling_period: 1 min
+    properties:
+      Batch Size: "1"
+      Data Format: Text
+      Custom Text: "{}"
+  - id: pd-http
+    name: InvokeHTTP (param)
+    type: org.apache.nifi.processors.standard.InvokeHTTP
+    properties:
+      HTTP URL: "https://httpbin.org/get"
+      Method: GET
+      # Dynamic header (NiFi accepts dynamic properties as request headers)
+      Authorization: "Bearer devtoken"
+  - id: pd-log
+    name: LogAttribute (param)
+    type: org.apache.nifi.processors.standard.LogAttribute
+    properties:
+      Log Level: "info"
+connections:
+  - name: Generate to HTTP
+    source: pd-generate
+    destination: pd-http
+    relationships: [success]
+  - name: HTTP to Log
+    source: pd-http
+    destination: pd-log
+    relationships: [Response]
+auto_terminate:
+  pd-log: [success]

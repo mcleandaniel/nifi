@@ -1,0 +1,23 @@
+process_group:
+  name: EchoLogger
+  description: |
+    Overview: Logs attributes/content and passes through unchanged.
+    Technical: Exposes `in`/`out` ports; a single LogAttribute processor connects `in -> log -> out`.
+  input_ports:
+    - id: in
+      name: in
+  output_ports:
+    - id: out
+      name: out
+  processors:
+    - id: log
+      name: LogAttribute
+      type: org.apache.nifi.processors.standard.LogAttribute
+      properties: {}
+  connections:
+    - source: in
+      destination: log
+      relationships: [success]
+    - source: log
+      destination: out
+      relationships: [success]

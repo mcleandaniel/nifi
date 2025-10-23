@@ -67,3 +67,50 @@ These are intentional non‑goals to prevent churn and preserve test intent.
   - Do NOT tweak queue/backpressure thresholds in code or tests to coerce `UP`.
   - Do NOT add flags to ignore or downgrade `BLOCKED` connections during `up flow`/`status flow`.
   - `BLOCKED` must continue to elevate the flow status to `INVALID` for CI visibility.
+
+## Icons & Diagramming
+
+- Add a tiny “icon theme” flag (e.g., dark/light) to the icon generator (`automation/scripts/generate_processor_icons.py`) and document usage in `automation/assets/processor-icons/README.md`.
+- Expand initial icon coverage beyond the first 20 common processors; prioritize types used in `automation/flows/NiFi_Flow.yaml` (e.g., UpdateRecord, GenerateRecord, CompressContent, RouteOnContent) and add tests to ensure a safe fallback icon when missing.
+
+## Comments Policy
+
+- Add `comments` support in processor specs (YAML) and propagate to NiFi `component.config.comments` on deploy.
+- Add CLI validator: `nifi-automation validate comments [SPEC] --output json` that reports processors missing comments except for trivial allow‑list types (initially: `LogAttribute`).
+- Wire comments validator into the deploy‑phase validation and integration suite gates (fail build if violations exist).
+- Authoring guide: see `automation/docs/tests/processor-comments.md` for schema, rules, and examples.
+
+- Backfill pass (non‑blocking): create an issue checklist to add concise `comments:` to existing processors across flows.
+  - Scope: `automation/flows/NiFi_Flow.yaml` and any single‑flow specs under `automation/flows/*.yaml`.
+  - Provide a helper script (advisory only) to list processors without `comments:`; do not fail CI.
+  - Track completion per process group; keep increments small to ease review.
+
+## ProcessGroup Library (new)
+
+Goal: Curate reusable Process Group fragments that can be injected into flows by reference.
+
+- Directory layout: `automation/process-library/` (siblings of `flows/` and `diagrams/`).
+- Fragment format: standalone YAML with a top-level `process_group` mapping; each PG exposes `input_ports`/`output_ports`.
+- Composition (MVP): preprocessor inlines library PGs into a harness flow at deploy time.
+  - Script: `automation/scripts/compose_with_library.py` (done)
+  - Harness example: `automation/flows/library/http_library_harness.yaml` (done)
+  - Two starter PGs: `EchoLogger.yaml`, `AttributeTagger.yaml` (done)
+- Roadmap (native support):
+  - Extend deployer to recognize `library_includes` directly in flow YAML and perform composition internally.
+  - Add aliasing, namespacing of child port keys, and conflict detection.
+  - Enable parameterization of library PGs (e.g., attr names) via future Parameter Contexts and/or templated properties.
+  - Add docs with patterns and catalog, plus tests that deploy each library PG in isolation and under a harness.
+
+## Trust Store Tools (follow-ups)
+
+- Protect all tools HTTP endpoints (create/add/remove/inspect) with an authentication mechanism (token header or basic auth) to avoid unauthenticated operations. (CLI: pass header via `--auth`.)
+- Return JSON for `inspect trust` by parsing `keytool -list -rfc` output.
+- Add `ssl-context create` CLI helper to create/enable `SSL TS:<name>` for a given truststore path/password/type.
+- Optional `--ephemeral` flag to purge tools PG after completion; default remains manual delete.
+
+## QueueDepthsHttpWorkflow response body
+
+- Ensure the `/queues` endpoint returns a non-empty HTML table. Investigate current `EvaluateJsonPath` + `ReplaceText` chain:
+  - If content remains empty despite `Replacement Strategy: Always Replace`, switch to a Jolt or explicit `ReplaceText` that wraps a known JSON payload from `/flow/process-groups/root/status?recursive=true`.
+  - Add an assertion in the test for presence of `<table` and a `Queued` or equivalent label.
+  - Stretch goal: provide a JSON variant at `/queues.json` and keep HTML as a simple view.

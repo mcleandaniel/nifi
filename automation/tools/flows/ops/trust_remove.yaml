@@ -1,0 +1,49 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: Tools_Trust_Remove
+      description: |
+        Remove an alias from a dedicated truststore. Operator-only; trigger via GenerateFlowFile Run once.
+      processors:
+        - id: gen-remove
+          name: Trigger (remove)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          properties:
+            Batch Size: "1"
+            Scheduling Strategy: TIMER_DRIVEN
+            Run Schedule: "24000 h"
+        - id: ua-remove
+          name: Params (remove)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            ts.name: local-nifi
+            ts.type: JKS
+            ts.pass: changeMe123!
+            alias: local-nifi
+        - id: exec-remove
+          name: Exec (remove)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; NAME='${ts.name}'; TYPE='${ts.type}'; PASS='${ts.pass}'; ALIAS='${alias}';
+              TYPE_UP=$(echo "$TYPE" | tr '[:lower:]' '[:upper:]'); case "$TYPE_UP" in JKS) EXT=jks;; PKCS12|P12) EXT=p12;; BCFKS) EXT=bcfks;; *) EXT=jks;; esac; FILE="$TS_DIR/${NAME}.$EXT";
+              keytool -delete -alias "$ALIAS" -keystore "$FILE" -storetype "$TYPE" -storepass "$PASS"; echo "Removed alias $ALIAS from $FILE"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: log-remove
+          name: Log (remove)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          properties: {}
+      connections:
+        - source: gen-remove
+          destination: ua-remove
+          relationships: [success]
+        - source: ua-remove
+          destination: exec-remove
+          relationships: [success]
+        - source: exec-remove
+          destination: log-remove
+          relationships: [output stream]

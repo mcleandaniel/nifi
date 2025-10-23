@@ -47,6 +47,7 @@ process_group:
     - id: simple-update
       name: UpdateRecord
       type: org.apache.nifi.processors.standard.UpdateRecord
+      comments: Uppercases /status to normalize values before branching.
       properties:
         Record Reader: json-reader
         Record Writer: json-writer
@@ -54,6 +55,7 @@ process_group:
     - id: simple-query
       name: QueryRecord
       type: org.apache.nifi.processors.standard.QueryRecord
+      comments: Routes to success when status='OK'; all others to failure.
       properties:
         record-reader: json-reader
         record-writer: json-writer
@@ -109,6 +111,7 @@ process_group:
     - id: medium-route
       name: Route On Attribute
       type: org.apache.nifi.processors.standard.RouteOnAttribute
+      comments: Uses Expression Language to route on attribute 'route'.
       properties:
         success: ${route:equals('success')}
     - id: medium-log-success
@@ -162,6 +165,7 @@ process_group:
     - id: complex-update
       name: UpdateRecord (Complex)
       type: org.apache.nifi.processors.standard.UpdateRecord
+      comments: Normalizes status and fills missing sensor to 'unknown'.
       properties:
         Record Reader: json-reader
         Record Writer: json-writer
@@ -170,6 +174,7 @@ process_group:
     - id: complex-query
       name: QueryRecord (Complex)
       type: org.apache.nifi.processors.standard.QueryRecord
+      comments: Splits records into high/low streams by reading_value threshold.
       properties:
         record-reader: json-reader
         record-writer: json-writer
@@ -452,6 +457,7 @@ process_group:
     - id: car-to-json
       name: AttributesToJSON (to content)
       type: org.apache.nifi.processors.standard.AttributesToJSON
+      comments: Writes selected attributes into FlowFile content.
       properties:
         Destination: flowfile-content
         Include Core Attributes: 'false'
@@ -459,6 +465,7 @@ process_group:
     - id: car-route
       name: RouteOnContent (status OK)
       type: org.apache.nifi.processors.standard.RouteOnContent
+      comments: Routes to OK when JSON content matches status="OK".
       properties:
         ok: '(?s).*"status"\s*:\s*"OK".*'
     - id: car-log-ok
@@ -571,6 +578,7 @@ process_group:
     - id: http-request
       name: HandleHttpRequest
       type: org.apache.nifi.processors.standard.HandleHttpRequest
+      comments: Listens on 18081 and forwards requests matching /test.
       properties:
         Listening Port: '18081'
         Allowed Paths: '/test'
@@ -578,6 +586,7 @@ process_group:
     - id: http-response
       name: HandleHttpResponse
       type: org.apache.nifi.processors.standard.HandleHttpResponse
+      comments: Returns 204 with Content-Type text/plain; uses same context map.
       properties:
         HTTP Status Code: '204'
         Content-Type: text/plain
@@ -623,12 +632,14 @@ process_group:
       - id: tg-convert
         name: ConvertRecord (json->csv)
         type: org.apache.nifi.processors.standard.ConvertRecord
+        comments: Converts JSON to CSV using json-reader and csv-writer.
         properties:
           Record Reader: json-reader
           Record Writer: csv-writer
       - id: tg-merge
         name: MergeRecord (3)
         type: org.apache.nifi.processors.standard.MergeRecord
+        comments: Batches 3 CSV records per FlowFile before compression.
         properties:
           Record Reader: csv-reader
           Record Writer: csv-writer
@@ -637,6 +648,7 @@ process_group:
       - id: tg-compress
         name: CompressContent (gzip)
         type: org.apache.nifi.processors.standard.CompressContent
+        comments: Compresses merged CSV using gzip prior to classification.
         properties:
           Compression Format: gzip
       connections:
@@ -673,6 +685,7 @@ process_group:
       - id: cg-query
         name: QueryRecord (ok/other)
         type: org.apache.nifi.processors.standard.QueryRecord
+        comments: Routes rows where route='success' to OK; others to OTHER.
         properties:
           record-reader: csv-reader
           record-writer: csv-writer
@@ -697,6 +710,7 @@ process_group:
       - id: http-req-82
         name: HandleHttpRequest(18082)
         type: org.apache.nifi.processors.standard.HandleHttpRequest
+        comments: Echo ingress on port 18082 at /echo.
         properties:
           Listening Port: '18082'
           Allowed Paths: '/echo'
@@ -704,6 +718,7 @@ process_group:
       - id: http-resp-82
         name: HandleHttpResponse(18082)
         type: org.apache.nifi.processors.standard.HandleHttpResponse
+        comments: Returns 204 for echo requests on 18082.
         properties:
           HTTP Status Code: '204'
           Content-Type: text/plain
@@ -719,6 +734,7 @@ process_group:
       - id: http-req-83
         name: HandleHttpRequest(18083)
         type: org.apache.nifi.processors.standard.HandleHttpRequest
+        comments: Echo ingress on port 18083 at /echo.
         properties:
           Listening Port: '18083'
           Allowed Paths: '/echo'
@@ -726,6 +742,7 @@ process_group:
       - id: http-resp-83
         name: HandleHttpResponse(18083)
         type: org.apache.nifi.processors.standard.HandleHttpResponse
+        comments: Returns 204 for echo requests on 18083.
         properties:
           HTTP Status Code: '204'
           Content-Type: text/plain

@@ -158,9 +158,29 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
                 "config": config,
             },
         }
-        response = self._client.post(f"/process-groups/{parent_id}/processors", json=body)
-        response.raise_for_status()
-        return response.json()["component"]
+        # NiFi can return a transient 404 for a just-created child PG; retry briefly
+        for attempt in range(10):
+            response = self._client.post(f"/process-groups/{parent_id}/processors", json=body)
+            try:
+                response.raise_for_status()
+                return response.json()["component"]
+            except httpx.HTTPStatusError as exc:  # pragma: no cover - live behavior
+                if (
+                    exc.response is not None
+                    and exc.response.status_code == 404
+                    and attempt < 9
+                ):
+                    # Debug aid for transient 404s when creating processors
+                    try:
+                        print(
+                            f"[create_processor] 404 parent={parent_id} name={name} type={type_name} "
+                            f"bundle={bundle} attempt={attempt} resp={exc.response.text[:200]}"
+                        )
+                    except Exception:
+                        pass
+                    time.sleep(0.2)
+                    continue
+                raise
 
     def set_processor_state(self, processor_id: str, state: str) -> None:
         for attempt in range(5):
@@ -208,6 +228,30 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         }
         response = self._client.put(f"/processors/{processor_id}", json=body)
         response.raise_for_status()
+
+    def get_bulletins(self, *, limit: int = 200, after: int | None = None) -> List[Dict[str, object]]:
+        params = {"limit": str(limit)}
+        if after is not None:
+            params["after"] = str(after)
+        resp = self._client.get("/flow/bulletin-board", params=params)
+        resp.raise_for_status()
+        data = resp.json() or {}
+        items = data.get("bulletinBoard", {}).get("bulletins", []) or []
+        rows: List[Dict[str, object]] = []
+        for it in items:
+            b = it.get("bulletin", {})
+            rows.append(
+                {
+                    "id": it.get("id"),
+                    "level": b.get("level"),
+                    "groupId": b.get("groupId"),
+                    "sourceId": b.get("sourceId"),
+                    "sourceName": b.get("sourceName"),
+                    "message": b.get("message"),
+                    "timestamp": b.get("timestamp"),
+                }
+            )
+        return rows
 
     def create_input_port(
         self,

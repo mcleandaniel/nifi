@@ -25,11 +25,13 @@ Design System
 - Strokes use `#ffffff` at 2.5px with rounded caps/joins for glyphs.
 
 Usage
-- Regenerate icons after editing `icons.yml`:
-  - `python automation/scripts/generate_processor_icons.py`
+- Generate dark theme icons (default):
+  - `python automation/scripts/generate_processor_icons.py --theme dark`
+- Generate light theme icons:
+  - `python automation/scripts/generate_processor_icons.py --theme light`
+- Icons are written to `svg/<theme>/`. The preview page currently loads the `dark` manifest by default.
 - Add new processors by appending entries to `icons.yml` with a recognized `glyph`.
 
 Notes
 - No trademarked logos are used. Kafka, S3, etc. are expressed with generic metaphors (queues, buckets, clouds).
 - If we later need PNGs, we can add an optional dependency (e.g., `cairosvg`) and a conversion step, but SVG is preferred.
-

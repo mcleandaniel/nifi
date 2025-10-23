@@ -176,17 +176,21 @@ def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
     )
     response.raise_for_status()
     existing = response.json().get("controllerServices") or []
-    if existing:
-        names = ", ".join(sorted(component.get("component", {}).get("name", "<unknown>") for component in existing))
-        raise ControllerServiceProvisioningError(
-            f"Expected clean NiFi root with no controller services; found: {names or '<unknown>'}. "
-            "Purge the instance before provisioning."
-        )
+    existing_by_name = {
+        (svc.get("component", {}) or {}).get("name"): (svc.get("component", {}) or {}).get("id")
+        for svc in existing
+    }
 
     key_to_id: Dict[str, str] = {}
     manifest_updated = False
 
     for entry in entries:
+        # Reuse existing service by name if present; else create
+        svc_id = existing_by_name.get(entry.name)
+        if svc_id:
+            entry.id = svc_id
+            key_to_id[entry.key] = svc_id
+            continue
         descriptors = _fetch_service_descriptors(client, entry)
         normalised_props = _normalise_properties(entry.properties, descriptors)
         service = client.create_controller_service(
@@ -205,15 +209,15 @@ def ensure_root_controller_services(client: NiFiClient) -> Dict[str, str]:
         if entry.auto_enable:
             client.enable_controller_service(service_id)
             _wait_for_state(client, service_id, "ENABLED")
+            entity = client.get_controller_service(service_id)
+            validation_errors = entity.get("component", {}).get("validationErrors") or []
+            if validation_errors:
+                raise ControllerServiceProvisioningError(
+                    f"Controller service {entry.name} ({service_id}) invalid after provisioning: {validation_errors}"
+                )
         else:
+            # Leave disabled; it may be invalid until truststores are provisioned.
             _wait_for_state(client, service_id, "DISABLED")
-
-        entity = client.get_controller_service(service_id)
-        validation_errors = entity.get("component", {}).get("validationErrors") or []
-        if validation_errors:
-            raise ControllerServiceProvisioningError(
-                f"Controller service {entry.name} ({service_id}) invalid after provisioning: {validation_errors}"
-            )
 
     if manifest_updated:
         _save_manifest_entries(entries)

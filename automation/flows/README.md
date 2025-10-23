@@ -55,6 +55,22 @@ Guidelines
 - The builder assembles the grouped output from `groups-md/` only; it does not read `automation/flows/*.yaml`.
 - Inline `yaml` in MD is a fallback for early drafts — prefer fragment files for ongoing maintenance.
 
+Processor comments (optional)
+- You may add a short human‑readable `comments:` field to any processor to clarify intent. This is purely documentation metadata and is not required for deployment.
+- Use it when the processor’s purpose isn’t immediately obvious from `name` + `type` and key properties.
+- Keep it brief (one sentence is ideal). Multi‑line blocks are allowed via `|`.
+- Example:
+  ```yaml
+  processors:
+    - id: tg-convert
+      name: ConvertRecord (json->csv)
+      type: org.apache.nifi.processors.standard.ConvertRecord
+      comments: Converts JSON to CSV using json-reader/csv-writer.
+      properties:
+        Record Reader: json-reader
+        Record Writer: csv-writer
+  ```
+
 Parameter hints in Markdown (optional)
 - You can add a `nifiparams` fenced block to a group MD file to declare parameters anticipated for workflows in that group. Example:
   ```

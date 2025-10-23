@@ -1,0 +1,14 @@
+name: QueueDepthsHttpWorkflow
+phase: draft
+description: "Overview: Exposes an HTTP endpoint that returns a simple HTML table\
+  \ of connection queue depths on the current NiFi instance.\nTechnical: HandleHttpRequest\
+  \ (path=/queues) \u2192 InvokeHTTP (POST ${BASE}/access/token with single-user creds)\
+  \ \u2192 UpdateAttribute (sets `Authorization: Bearer ${token}`) \u2192 InvokeHTTP\
+  \ (GET ${BASE}/flow/process-groups/root/status?recursive=true) \u2192 JoltTransformJSON\
+  \ (flatten connections to name, queuedCount, queuedBytes) \u2192 ReplaceText (wrap\
+  \ rows in an HTML table) \u2192 HandleHttpResponse (Content-Type: text/html). For\
+  \ HTTPS in Docker, target the internal URL (e.g., https://$(hostname):8443/nifi-api)\
+  \ and ensure TLS trust; in early iterations prefer Basic token fetch + Bearer header\
+  \ to keep auth simple."
+processors: []
+connections: []

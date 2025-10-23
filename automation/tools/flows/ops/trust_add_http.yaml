@@ -1,0 +1,130 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: Tools_Trust_Add_HTTP
+      description: |
+        Add a remote HTTPS certificate via HTTP trigger. Query params: name, type (default JKS), pass, url, alias.
+        Flow: HandleHttpRequest (/tools/trust/add) → ExecuteStreamCommand (fetch + import) → HandleHttpResponse.
+      processors:
+        - id: http-req
+          name: HandleHttpRequest
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: "18081"
+            Allowed Paths: "/tools/trust/add"
+            HTTP Context Map: http-context-map
+        - id: parse
+          name: Parse Query (Groovy)
+          type: org.apache.nifi.processors.script.ExecuteScript
+          properties:
+            Script Engine: Groovy
+            Script Body: |
+              import java.net.URLDecoder
+              def ff = session.get(); if(!ff) return
+              def qs = ff.getAttribute('http.query.string') ?: ''
+              def params = [:]
+              qs.split('&').each { p ->
+                if(p) {
+                  def parts = p.split('=',2)
+                  def k = parts[0]
+                  def v = parts.length>1 ? URLDecoder.decode(parts[1], 'UTF-8') : ''
+                  params[k] = v
+                }
+              }
+              def name = params['name'] ?: ''
+              def type = (params['type'] ?: 'JKS').toUpperCase()
+              def pass = params['pass'] ?: ''
+              def url = params['url'] ?: ''
+              def alias = params['alias'] ?: ''
+              def host = ''; def port = '443'
+              if(url) {
+                def m = (url =~ /^https?:\/\/([^\/:]+)(?::(\d+))?/)
+                if(m) { host = m[0][1]; if(m[0].size()>2 && m[0][2]) port = m[0][2] }
+              }
+              if(host == 'SELF' || host == '\\$(hostname)' || host == 'localhost') {
+                host = java.net.InetAddress.getLocalHost().getHostName()
+              }
+              ff = session.putAllAttributes(ff, [
+                'ts.name': name,
+                'ts.type': type,
+                'ts.pass': pass,
+                'url.host': host,
+                'url.port': port,
+                'alias': alias,
+              ])
+              session.transfer(ff, REL_SUCCESS)
+        - id: run
+          name: Run (Groovy add)
+          type: org.apache.nifi.processors.script.ExecuteScript
+          properties:
+            Script Engine: Groovy
+            Script Body: |
+              import java.nio.charset.StandardCharsets
+              import javax.net.ssl.*
+              import java.security.*
+              import java.security.cert.*
+              
+              def ff = session.get(); if(!ff) return
+              def dir = new File('/opt/nifi/nifi-current/conf/truststores'); dir.mkdirs()
+              def name = ff.getAttribute('ts.name')?:''
+              def type = (ff.getAttribute('ts.type')?:'PKCS12').toUpperCase()
+              def pass = ff.getAttribute('ts.pass')?:''
+              def host = ff.getAttribute('url.host')?:''
+              def port = Integer.parseInt(ff.getAttribute('url.port')?:'443')
+              def aliasBase = ff.getAttribute('alias')?:'alias'
+              def ext = type=='JKS'?'jks': (['PKCS12','P12'].contains(type)?'p12': (type=='BCFKS'?'bcfks':'p12'))
+              def trust = new File(dir, name + '.' + ext)
+              def out = new StringBuilder()
+              int status = 200
+              try {
+                // Capture server certificate chain with permissive TrustManager
+                def chainHolder = new java.util.ArrayList<X509Certificate>()
+                def tm = ([
+                  getAcceptedIssuers: { -> new X509Certificate[0] as X509Certificate[] },
+                  checkClientTrusted: { X509Certificate[] c, String a -> },
+                  checkServerTrusted: { X509Certificate[] c, String a -> chainHolder.addAll(java.util.Arrays.asList(c)) }
+                ] as X509TrustManager)
+                def ctx = SSLContext.getInstance('TLS')
+                ctx.init(null, [tm] as TrustManager[], new SecureRandom())
+                def sock = ctx.getSocketFactory().createSocket(host, port) as SSLSocket
+                try {
+                  def params = sock.getSSLParameters()
+                  params.setServerNames(java.util.Collections.singletonList(new javax.net.ssl.SNIHostName(host)))
+                  sock.setSSLParameters(params)
+                } catch(Exception ignore) {}
+                sock.startHandshake(); sock.close()
+                def chain = chainHolder
+                if(chain.isEmpty()) throw new Exception('No certificates captured from server')
+                // Load or create keystore
+                def ks = KeyStore.getInstance(type)
+                if(trust.exists()) { new FileInputStream(trust).withCloseable { ks.load(it, pass.toCharArray()) } } else { ks.load(null, pass.toCharArray()) }
+                // Import certificates
+                int idx = 0
+                for(cert in chain){
+                  def alias = (idx==0? aliasBase : aliasBase+'-'+idx)
+                  ks.setCertificateEntry(alias, cert)
+                  idx++
+                }
+                new FileOutputStream(trust).withCloseable { ks.store(it, pass.toCharArray()) }
+                out.append(trust.name).append('\nImported certs for ').append(host).append(':').append(port)
+              } catch(Exception ex){ status=500; out.append('ERROR: ').append(ex.message) }
+              ff = session.write(ff){ os -> os.write(out.toString().getBytes(StandardCharsets.UTF_8)) }
+              ff = session.putAttribute(ff,'http.status', String.valueOf(status))
+              session.transfer(ff, REL_SUCCESS)
+        - id: http-resp
+          name: HandleHttpResponse
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: "${http.status}"
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+      connections:
+        - source: http-req
+          destination: parse
+          relationships: [success]
+        - source: parse
+          destination: run
+          relationships: [success]
+        - source: run
+          destination: http-resp
+          relationships: [success]

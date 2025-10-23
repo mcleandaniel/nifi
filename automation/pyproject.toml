@@ -39,5 +39,6 @@ minversion = "8.0"
 addopts = "-q"
 testpaths = ["tests"]
 markers = [
-  "integration: marks tests that require a live NiFi instance"
+  "integration: marks tests that require a live NiFi instance",
+  "tools: marks tests for tools CLI flows (trust-store ops)"
 ]

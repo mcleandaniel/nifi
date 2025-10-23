@@ -57,12 +57,20 @@ def enable_all_controllers(client: NiFiClient, *, timeout: float = 60.0) -> Dict
         state = component.get("state")
         if not service_id:
             continue
+        name = (component.get("name") or "")
         if state == "ENABLED":
             continue
-        client.enable_controller_service(service_id)
-        _wait_for_controller_state(client, service_id, "ENABLED", timeout=timeout)
-        enabled["count"] += 1
-        enabled["services"].append(service_id)
+        # Skip enabling optional baseline SSL context until configured
+        if name == "Workflow SSL":
+            continue
+        try:
+            client.enable_controller_service(service_id)
+            _wait_for_controller_state(client, service_id, "ENABLED", timeout=timeout)
+            enabled["count"] += 1
+            enabled["services"].append(service_id)
+        except Exception:
+            # Non-fatal: leave service as-is (likely invalid until truststore/params are set)
+            continue
     return enabled
 
 

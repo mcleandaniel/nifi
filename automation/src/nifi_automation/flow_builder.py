@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import math
 import time
 from pathlib import Path
+import time
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
 import yaml
 
@@ -25,9 +26,11 @@ class ProcessorSpec:
     type: str
     position: Optional[Tuple[float, float]]
     properties: Dict[str, str]
+    comments: Optional[str] = None
     scheduling_strategy: Optional[str] = None
     scheduling_period: Optional[str] = None
     explicit_position: bool = False
+    state: Optional[str] = None
 
 
 @dataclass
@@ -332,11 +335,13 @@ def _parse_process_group(
             type=item.get("type"),
             position=_ensure_position(item.get("position")),
             properties=item.get("properties") or {},
+            comments=item.get("comments"),
             scheduling_strategy=item.get("scheduling_strategy") or item.get("schedulingStrategy"),
             scheduling_period=_normalize_property_value(raw_schedule_period)
             if raw_schedule_period is not None
             else None,
             explicit_position=bool(item.get("position")),
+            state=(item.get("state") or item.get("status") or None),
         )
         if not proc.type:
             raise FlowDeploymentError(f"Processor '{key}' in group '{name}' missing 'type'")
@@ -910,6 +915,11 @@ class FlowDeployer:
             processor_id_map[spec.key] = (created["id"], parent_pg_id)
             if prepared.auto_terminate:
                 self.client.update_processor_autoterminate(created["id"], prepared.auto_terminate)
+            if spec.state:
+                try:
+                    self.client.set_processor_state(created["id"], spec.state)
+                except Exception:
+                    pass
 
         for child in group_spec.child_groups:
             existing_child = self.client.find_child_process_group_by_name(parent_pg_id, child.name)
@@ -922,6 +932,13 @@ class FlowDeployer:
                 comments=child.comments,
             )
             child_id = child_entity["id"]
+            # Ensure the child group is addressable before creating processors (avoid rare 404s)
+            for _ in range(10):
+                try:
+                    _ = self.client.get_process_group(child_id)
+                    break
+                except Exception:
+                    time.sleep(0.1)
             child_proc_map, child_in_map, child_out_map = self._deploy_group_contents(child_id, child)
             processor_id_map.update(child_proc_map)
             input_port_id_map.update(child_in_map)
@@ -934,12 +951,14 @@ class FlowDeployer:
             destination_id, destination_type, destination_group = self._resolve_component_id(
                 conn.destination, processor_id_map, input_port_id_map, output_port_id_map
             )
+            # Only processors have selectable relationships; for ports NiFi rejects them.
+            rels = conn.relationships if source_type == "PROCESSOR" else []
             self.client.create_connection(
                 parent_id=parent_pg_id,
                 name=conn.name,
                 source_id=source_id,
                 destination_id=destination_id,
-                relationships=conn.relationships,
+                relationships=rels,
                 source_type=source_type,
                 destination_type=destination_type,
                 source_group_id=source_group,

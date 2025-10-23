@@ -1,0 +1,96 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+  - name: LibraryHarnessHTTP
+    description: "Overview: Minimal HTTP harness that wires request/response through\
+      \ library PGs.\nTechnical: `HandleHttpRequest` (port 18081, `/libtest`) \u2192\
+      \ EchoLogger (in/out ports) \u2192 AttributeTagger \u2192 `HandleHttpResponse`\
+      \ (204).\nUses the process-library and is composed via `automation/scripts/compose_with_library.py`\
+      \ at deploy time.\n"
+    processors:
+    - id: http-request
+      name: HandleHttpRequest
+      type: org.apache.nifi.processors.standard.HandleHttpRequest
+      properties:
+        Listening Port: '18081'
+        Allowed Paths: /libtest
+        HTTP Context Map: http-context-map
+    - id: http-response
+      name: HandleHttpResponse
+      type: org.apache.nifi.processors.standard.HandleHttpResponse
+      properties:
+        HTTP Status Code: '204'
+        Content-Type: text/plain
+        HTTP Context Map: http-context-map
+    connections:
+    - name: Request to Echo
+      source: http-request
+      destination: EchoLogger__in
+      relationships:
+      - success
+    - name: Echo to Tagger
+      source: EchoLogger__out
+      destination: AttributeTagger__in
+      relationships:
+      - success
+    - name: Tagger to Response
+      source: AttributeTagger__out
+      destination: http-response
+      relationships:
+      - success
+    process_groups:
+    - name: EchoLogger
+      description: 'Overview: Logs attributes/content and passes through unchanged.
+
+        Technical: Exposes `in`/`out` ports; a single LogAttribute processor connects
+        `in -> log -> out`.
+
+        '
+      input_ports:
+      - id: EchoLogger__in
+        name: in
+      output_ports:
+      - id: EchoLogger__out
+        name: out
+      processors:
+      - id: log
+        name: LogAttribute
+        type: org.apache.nifi.processors.standard.LogAttribute
+        properties: {}
+      connections:
+      - source: EchoLogger__in
+        destination: log
+        relationships:
+        - success
+      - source: log
+        destination: EchoLogger__out
+        relationships:
+        - success
+    - name: AttributeTagger
+      description: 'Overview: Adds a simple marker attribute and passes through.
+
+        Technical: Exposes `in`/`out` ports; UpdateAttribute sets `lib.tagged=true`
+        on the FlowFile and routes to `out`.
+
+        '
+      input_ports:
+      - id: AttributeTagger__in
+        name: in
+      output_ports:
+      - id: AttributeTagger__out
+        name: out
+      processors:
+      - id: tag
+        name: UpdateAttribute
+        type: org.apache.nifi.processors.attributes.UpdateAttribute
+        properties:
+          lib.tagged: 'true'
+      connections:
+      - source: AttributeTagger__in
+        destination: tag
+        relationships:
+        - success
+      - source: tag
+        destination: AttributeTagger__out
+        relationships:
+        - success

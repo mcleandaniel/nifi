@@ -25,7 +25,9 @@ CANONICAL_TARGETS = {
     "connections": {"connection", "connections", "queue", "queues", "conn"},
     "ports": {"port", "ports"},
     "params": {"param", "params", "parameter", "parameters", "pc", "pcs", "contexts", "parameter-contexts"},
+    "bulletins": {"bulletin", "bulletins"},
     "layout": {"layout"},
+    "trust": {"trust", "trust-store", "truststore"},
 }
 
 ALIAS_TO_CANONICAL: Dict[str, str] = {

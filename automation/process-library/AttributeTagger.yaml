@@ -1,0 +1,24 @@
+process_group:
+  name: AttributeTagger
+  description: |
+    Overview: Adds a simple marker attribute and passes through.
+    Technical: Exposes `in`/`out` ports; UpdateAttribute sets `lib.tagged=true` on the FlowFile and routes to `out`.
+  input_ports:
+    - id: in
+      name: in
+  output_ports:
+    - id: out
+      name: out
+  processors:
+    - id: tag
+      name: UpdateAttribute
+      type: org.apache.nifi.processors.attributes.UpdateAttribute
+      properties:
+        lib.tagged: "true"
+  connections:
+    - source: in
+      destination: tag
+      relationships: [success]
+    - source: tag
+      destination: out
+      relationships: [success]

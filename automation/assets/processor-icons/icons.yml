@@ -79,3 +79,19 @@ processors:
     category: source
     glyph: file-in
 
+  # Newly added specific icons
+  - name: UpdateRecord
+    category: transform
+    glyph: record-edit
+
+  - name: GenerateRecord
+    category: source
+    glyph: table-plus
+
+  - name: CompressContent
+    category: transform
+    glyph: compress
+
+  - name: RouteOnContent
+    category: route
+    glyph: content-route

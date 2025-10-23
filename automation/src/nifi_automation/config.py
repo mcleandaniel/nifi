@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import socket
 from typing import Any, Dict, Optional
 
 from pydantic import AnyHttpUrl
@@ -27,6 +28,8 @@ class AuthSettings(BaseSettings):
     )
 
     base_url: AnyHttpUrl
+    internal_base_url: Optional[str] = None
+    prefer_internal: bool = False
     username: str
     password: str
     verify_ssl: bool = True
@@ -51,6 +54,13 @@ def build_settings(
     """Construct settings using environment defaults and CLI overrides."""
 
     settings = AuthSettings()
+    # Prefer the internal base URL if configured and requested (e.g., running inside the NiFi container)
+    if settings.prefer_internal and settings.internal_base_url:
+        chosen = str(settings.internal_base_url)
+        # Lightweight expansion of $(hostname) if present
+        if "$(hostname)" in chosen:
+            chosen = chosen.replace("$(hostname)", socket.gethostname())
+        settings = settings.merged(base_url=chosen)
     overrides: Dict[str, Any] = {
         "base_url": base_url,
         "username": username,

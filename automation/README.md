@@ -43,11 +43,15 @@ Then continue with the steps below.
    ```
 
 3. **Configure NiFi connection (via repo-root `.env` or env vars)**
-   ```bash
-   export NIFI_BASE_URL="https://localhost:8443/nifi-api"
-   export NIFI_USERNAME="admin"
-   export NIFI_PASSWORD="changeme"
-   ```
+  ```bash
+  export NIFI_BASE_URL="https://localhost:8443/nifi-api"
+  export NIFI_USERNAME="admin"
+  export NIFI_PASSWORD="changeme"
+  ```
+  - When running inside the NiFi Docker container and making REST calls back to the same container, you can prefer an internal base URL:
+    - `NIFI_INTERNAL_BASE_URL="https://$(hostname):8443/nifi-api"`
+    - `NIFI_PREFER_INTERNAL=true`
+    The CLI resolves `$(hostname)` at runtime to the container hostname and uses the internal URL when `NIFI_PREFER_INTERNAL=true`.
 
 4. **Run the CLI (from repo root)** (TLS verification disabled by default; add `--verify-ssl` to enable):
   ```bash
@@ -80,8 +84,9 @@ To run the live integration suite, keep a NiFi 2.0 instance running locally with
 
 ```bash
 docker run -d --name nifi \
-  -p 18081-18180:18081-18180 \
+  -p 18070-18180:18070-18180 \
   -p 8443:8443 \
+  -e NIFI_WEB_HTTPS_HOST=0.0.0.0 \
   -e NIFI_WEB_HTTPS_PORT=8443 \
   -e SINGLE_USER_CREDENTIALS_USERNAME=admin \
   -e SINGLE_USER_CREDENTIALS_PASSWORD='changeMe123!' \
@@ -94,6 +99,17 @@ docker run -d --name nifi \
 ```
 
 The integration tests assume NiFi is available at `https://localhost:8443/nifi-api` with the single-user credentials shown above.
+
+### Docker helpers
+- See `docker/README.md` for scripts to:
+  - bind Jetty to `0.0.0.0` in a running container without rebuilding (`docker/bin/nifi-bind-all.sh`)
+  - verify HTTPS reachability from inside the container (`docker/bin/nifi-verify.sh`)
+  - manage a local `nifi.properties` overlay under `docker/overrides/` for persistent runs
+
+Notes on HTTPS bind and SNI (dev):
+- Setting `NIFI_WEB_HTTPS_HOST=0.0.0.0` ensures Jetty listens on all interfaces so `https://localhost:8443` works from inside and outside Docker.
+- The default NiFi server certificate CN is `localhost`. For internal self-calls from flows, prefer `https://localhost:8443` with a `StandardSSLContextService` that trusts the CN=localhost certificate.
+- If you must call `https://$(hostname):8443` from inside the container (e.g., using the container’s hostname), either reissue the server certificate with a SAN that includes that hostname, or set InvokeHTTP’s `Hostname Verifier` property to a relaxed mode (e.g., Allow All) only for these self-calls.
 
 ## Tips for Consistent Environments
 - **Always purge first**. Treat every NiFi instance as dirty until proven otherwise.
@@ -184,6 +200,18 @@ If the deploy fails because services already exist, purge again—`ensure_root_c
   - connection queue snapshots (counts/bytes/percent use)
   The integration suite invokes the same command after deployment.
 
+### Bulletin triage (runtime-only errors)
+Use bulletins to monitor runtime issues (network/TLS/auth/endpoint health) without blocking deploys.
+
+Fetch recent ERROR bulletins and summarize:
+```bash
+source automation/.venv/bin/activate
+set -a; source .env; set +a
+python automation/scripts/fetch_bulletins.py --limit 200 --severity ERROR --output json
+```
+
+For LLM-assisted analysis, paste the JSON output into `prompts/analyze-bulletins.md` under BULLETINS_JSON and ask for root causes and next steps.
+
 ## Flow Specifications
 - Declarative specs live under `flows/`. Examples:
   - `automation/flows/NiFi_Flow.yaml`: deploys `TrivialFlow`, `SimpleWorkflow`, `MediumWorkflow`, `ComplexWorkflow`, and
@@ -238,6 +266,19 @@ External flow tests
 - Place external-trigger tests under `automation/tests/flows/<ProcessGroupName>/test_*.py` (e.g., `HttpServerWorkflow`).
 - Tests must fail if the endpoint/port is not reachable; the trigger is part of the flow’s contract. A short readiness
   probe (a few retries over ~10 s) is acceptable to avoid racing the listener bind, but failures must be fatal.
+
+## Process Library (MVP)
+
+- Reusable Process Groups live under `automation/process-library/` as standalone YAML files with a top-level `process_group`.
+- Compose a harness that references library PGs using `library_includes` and `Alias.port` syntax in connections, then inline at deploy time:
+  ```bash
+  python automation/scripts/compose_with_library.py \
+    --input automation/flows/library/http_library_harness.yaml \
+    --out automation/flows/library/http_library_harness_composed.yaml
+  python -m nifi_automation.cli.main run flow automation/flows/library/http_library_harness_composed.yaml --output json
+  ```
+- Starter PGs: `EchoLogger` and `AttributeTagger`. Example harness at `automation/flows/library/http_library_harness.yaml`.
+- Next step (roadmap): teach the deployer to process `library_includes` natively so composition doesn’t require a pre-step.
 - The integration runner only executes flow tests for PGs present in `NiFi_Flow.yaml`. Do not add a new PG to the
   aggregate until its standalone spec and tests are green.
 - Prefer parameterizing triggers (ports, paths) via Parameter Context values and referencing them in tests via `.env`.
@@ -261,3 +302,51 @@ Multiple specs can be supplied (comma-separated or space-separated); the script 
   via the same command.
 - Snapshot deployed process groups to NiFi Registry for lifecycle management.
 - Add structured logging and integration tests targeting a disposable NiFi instance.
+## Diagram Web Server (Experimental)
+
+- Serve generated diagrams and icon assets via a tiny web UI.
+- Start the server:
+  - `source automation/.venv/bin/activate`
+  - `python automation/scripts/diagram_web.py --spec automation/flows/NiFi_Flow.yaml --theme dark --port 8091`
+- Open `http://127.0.0.1:8091/` for the index of groups.
+- Regenerate using another theme: `curl 'http://127.0.0.1:8091/api/render?theme=light'` and refresh the page.
+- Browse icons preview: `http://127.0.0.1:8091/assets/processor-icons/preview/index.html`.
+
+## Authoring: Processor Comments (Optional)
+
+- You can add a short `comments:` field to any processor when the intent isn’t obvious from the `name` + `type`.
+- Keep it brief (one sentence is ideal); multi‑line blocks (`|`) are fine for nuance.
+- Example:
+  ```yaml
+  processors:
+    - id: my-query
+      name: QueryRecord (status split)
+      type: org.apache.nifi.processors.standard.QueryRecord
+      comments: Routes records to OK/OTHER streams based on /status.
+      properties:
+        record-reader: json-reader
+        record-writer: json-writer
+  ```
+- SSL trust helper (container)
+  - To trust self-signed certs for InvokeHTTP (either calling NiFi itself or external services), run the container script:
+    ```bash
+    # Inside the NiFi container
+    /opt/nifi/scripts/nifi_trust_helper.sh local --alias local-nifi
+    /opt/nifi/scripts/nifi_trust_helper.sh remote --url https://api.example.com:443 --alias api-example
+    ```
+    The repo version lives at `automation/scripts/nifi_trust_helper.sh`. Mount or copy it into the container.
+    See `docs/ssl-trust-helper.md` for details.
+
+- Trust tools (CLI)
+  - The CLI provides `trust` subcommands that deploy ephemeral HTTP-triggered flows to add/remove/inspect dedicated truststores and auto-provision a root SSL Context Service ("Workflow SSL").
+  - Quick start:
+    ```bash
+    nifi-automation add trust --ts-name workflow --ts-type PKCS12 --ts-password abcd1234 \
+      --ts-alias nifi-https --trust-url https://SELF:8443 --output json
+    nifi-automation inspect trust --ts-name workflow --ts-type PKCS12 --ts-password abcd1234 --output json
+    ```
+  - See `docs/trust-store-ops.md` for design and operational details.
+- Port ranges (dev convention)
+- Tools (ephemeral, CLI-triggered): 18070–18079 (default 18071)
+- Workflows (HTTP-triggered tests): 18080–18180 (default 18081 for examples)
+- Rationale: avoids collisions between tools and workflow listeners. Trust tools deploy on-demand and remove their PGs after completion.

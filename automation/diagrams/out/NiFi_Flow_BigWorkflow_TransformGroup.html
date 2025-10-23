@@ -1,0 +1,31 @@
+
+<!doctype html>
+<html lang='en'>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <title>NiFi Flow/BigWorkflow/TransformGroup</title>
+  <body style="margin:0;background:#f7fafc;color:#111827">
+    <div style="position:sticky;top:0;padding:10px 16px;border-bottom:1px solid #e5e7eb;background:#f7fafc"><a href='NiFi_Flow_BigWorkflow.html' style="color:#111827;text-decoration:none">← Back to BigWorkflow</a></div>
+    <svg xmlns='http://www.w3.org/2000/svg' width='1440' height='280' viewBox='0 0 1440 280'>
+<defs><marker id='arrow' markerWidth='8' markerHeight='8' refX='4' refY='4' orient='auto-start-reverse'><path d='M0,0 L8,4 L0,8 z' fill='#6b7280'/></marker><style><![CDATA[ .edge{stroke:#6b7280;stroke-width:1.8;fill:none} .label{font:12px system-ui;fill:#374151} .title{font:16px system-ui;fill:#111827} .port{fill:#2563eb} .box{fill:#ffffff; stroke:#e5e7eb; stroke-width:1} ]]></style></defs>
+<text x='24' y='28' class='title'>NiFi Flow/BigWorkflow/TransformGroup</text>
+<path d='M64,72 C158.0,72 158.0,108 252,108' class='edge' marker-end='url(#arrow)'/>
+<path d='M364,108 C418.0,108 418.0,108 472,108' class='edge' marker-end='url(#arrow)'/>
+<path d='M584,108 C638.0,108 638.0,108 692,108' class='edge' marker-end='url(#arrow)'/>
+<path d='M804,108 C858.0,108 858.0,108 912,108' class='edge' marker-end='url(#arrow)'/>
+<path d='M1024,108 C1094.0,108 1094.0,72 1164,72' class='edge' marker-end='url(#arrow)'/>
+<image href='../assets/processor-icons/svg/light/ConvertRecord.svg' x='260' y='60' width='96' height='96' />
+<text x='308' y='172' text-anchor='middle' class='label'>UpdateAttribute (enrich)</text>
+<image href='../assets/processor-icons/svg/light/ConvertRecord.svg' x='480' y='60' width='96' height='96' />
+<text x='528' y='172' text-anchor='middle' class='label'>ConvertRecord (json-&gt;csv)</text>
+<image href='../assets/processor-icons/svg/light/MergeRecord.svg' x='700' y='60' width='96' height='96' />
+<text x='748' y='172' text-anchor='middle' class='label'>MergeRecord (3)</text>
+<image href='../assets/processor-icons/svg/light/CompressContent.svg' x='920' y='60' width='96' height='96' />
+<text x='968' y='172' text-anchor='middle' class='label'>CompressContent (gzip)</text>
+<circle cx='64' cy='72' r='10' class='port' />
+<text x='88' y='76' class='label'>TG IN (in)</text>
+<rect x='1154' y='62' width='20' height='20' class='port' rx='4' />
+<text x='1180' y='76' class='label'>TG OUT (out)</text>
+</svg>
+  </body>
+</html>

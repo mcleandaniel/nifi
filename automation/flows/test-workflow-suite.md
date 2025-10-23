@@ -238,6 +238,21 @@ flowchart LR
 ```
 
 ## 9. ContentAttributeRoute Workflow
+
+## 10. QueueDepthsHttpWorkflow
+```nifidesc
+name: QueueDepthsHttpWorkflow
+Overview: Exposes an HTTP endpoint on port 18081 that returns a simple HTML table summarizing queued FlowFiles/bytes for the root process group.
+Technical: HandleHttpRequest (path=/queues) → InvokeHTTP (GET https://localhost:8443/nifi-api/flow/process-groups/root/status?recursive=true, Basic auth) → EvaluateJsonPath extracts queued stats → ReplaceText formats as HTML → HandleHttpResponse (text/html). Requires a root SSL Context Service (Workflow SSL) if HTTPS trust is enforced; otherwise set Hostname Verifier appropriately for internal self-calls.
+```
+
+## 11. TrustBootstrapWorkflow
+```nifidesc
+name: TrustBootstrapWorkflow
+Overview: HTTP-triggered trust bootstrap that fetches the NiFi HTTPS certificate from https://$(hostname):8443 and imports it into the truststore.
+Technical: HandleHttpRequest (/trust/local) → ExecuteProcess runs '/opt/nifi/scripts/nifi_trust_helper.sh local --alias local-nifi' → HandleHttpResponse (text/plain). Failure routes return 500.
+```
+
 ```nifidesc
 name: ContentAttributeRouteWorkflow
 Overview: Builds minimal JSON from attributes and routes content using a regex-based RouteOnContent.

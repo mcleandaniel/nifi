@@ -1,31 +1,8 @@
 name: NestedWorkflow
+phase: draft
 description: 'Overview: Demonstrates a nested process group without ports.
 
   Technical: Parent group contains a single child group ''SubFunction'' with GenerateFlowFile
-  feeding LogAttribute.
-
-  Tests nested creation, layout, and teardown sequencing during purge.
-
-  '
+  feeding LogAttribute.'
 processors: []
-process_groups:
-- name: SubFunction
-  processors:
-  - id: nested-sub-generate
-    name: Generate FlowFile (Sub)
-    type: org.apache.nifi.processors.standard.GenerateFlowFile
-    scheduling_period: 1 min
-    properties:
-      Batch Size: '1'
-  - id: nested-sub-log
-    name: LogAttribute (Sub)
-    type: org.apache.nifi.processors.standard.LogAttribute
-  connections:
-  - name: Sub Generate to Log
-    source: nested-sub-generate
-    destination: nested-sub-log
-    relationships:
-    - success
-  auto_terminate:
-    nested-sub-log:
-    - success
+connections: []

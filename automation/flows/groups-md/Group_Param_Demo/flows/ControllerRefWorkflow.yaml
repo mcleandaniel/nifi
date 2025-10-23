@@ -1,0 +1,37 @@
+name: ControllerRefWorkflow
+description: |
+  Demonstrates referencing a NiFi API controller doc. Uses dev-only hardcoded
+  credentials from group MD to call the local NiFi REST API (may 401/403
+  unless token flow is added later).
+doc_refs:
+  - controllers-md/NiFiApi.md
+processors:
+  - id: cr-generate
+    name: Generate FlowFile
+    type: org.apache.nifi.processors.standard.GenerateFlowFile
+    scheduling_period: 1 min
+    properties:
+      Batch Size: "1"
+      Data Format: Text
+      Custom Text: "{}"
+  - id: cr-http
+    name: InvokeHTTP (NiFi API)
+    type: org.apache.nifi.processors.standard.InvokeHTTP
+    properties:
+      HTTP URL: "https://localhost:8443/nifi-api/flow/connections"
+      Method: GET
+      # Dev-only: unauthenticated call will likely 401; included to exercise HTTP call
+  - id: cr-log
+    name: LogAttribute
+    type: org.apache.nifi.processors.standard.LogAttribute
+connections:
+  - name: Generate to HTTP
+    source: cr-generate
+    destination: cr-http
+    relationships: [success]
+  - name: HTTP to Log
+    source: cr-http
+    destination: cr-log
+    relationships: [Response]
+auto_terminate:
+  cr-log: [success]

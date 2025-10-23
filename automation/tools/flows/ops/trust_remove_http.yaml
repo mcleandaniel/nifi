@@ -1,0 +1,82 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: Tools_Trust_Remove_HTTP
+      description: |
+        Remove an alias via HTTP trigger. Query params: name, type (default JKS), pass, alias.
+        Flow: HandleHttpRequest (/tools/trust/remove) → ExecuteStreamCommand (delete alias) → HandleHttpResponse.
+      processors:
+        - id: http-req
+          name: HandleHttpRequest
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: "18081"
+            Allowed Paths: "/tools/trust/remove"
+            HTTP Context Map: http-context-map
+        - id: parse
+          name: Parse Query (Groovy)
+          type: org.apache.nifi.processors.script.ExecuteScript
+          properties:
+            Script Engine: Groovy
+            Script Body: |
+              import java.net.URLDecoder
+              def ff = session.get(); if(!ff) return
+              def qs = ff.getAttribute('http.query.string') ?: ''
+              def params = [:]
+              qs.split('&').each { p ->
+                if(p) { def parts = p.split('=',2); def k=parts[0]; def v=parts.length>1?URLDecoder.decode(parts[1],'UTF-8'):''; params[k]=v }
+              }
+              def name=params['name']?:''; def type=(params['type']?:'JKS').toUpperCase(); def pass=params['pass']?:''; def alias=params['alias']?:''
+              ff = session.putAllAttributes(ff, ['ts.name':name,'ts.type':type,'ts.pass':pass,'alias':alias])
+              session.transfer(ff, REL_SUCCESS)
+        - id: run
+          name: Run (Groovy remove)
+          type: org.apache.nifi.processors.script.ExecuteScript
+          properties:
+            Script Engine: Groovy
+            Script Body: |
+              import java.nio.charset.StandardCharsets
+              import java.security.KeyStore
+              
+              def ff = session.get(); if(!ff) return
+              def dir = new File('/opt/nifi/nifi-current/conf/truststores'); dir.mkdirs()
+              def name = ff.getAttribute('ts.name')?:''
+              def type = (ff.getAttribute('ts.type')?:'PKCS12').toUpperCase()
+              def pass = ff.getAttribute('ts.pass')?:''
+              def alias = ff.getAttribute('alias')?:''
+              def ext = type=='JKS'?'jks': (['PKCS12','P12'].contains(type)?'p12': (type=='BCFKS'?'bcfks':'p12'))
+              def trust = new File(dir, name + '.' + ext)
+              def sb = new StringBuilder()
+              int status = 200
+              try {
+                if(!trust.exists()) throw new Exception('Truststore not found: '+trust.absolutePath)
+                def ks = KeyStore.getInstance(type)
+                new FileInputStream(trust).withCloseable { ks.load(it, pass.toCharArray()) }
+                if(ks.containsAlias(alias)){
+                  ks.deleteEntry(alias)
+                  new FileOutputStream(trust).withCloseable { ks.store(it, pass.toCharArray()) }
+                  sb.append('Removed alias ').append(alias).append(' from ').append(trust.absolutePath)
+                } else {
+                  sb.append('Alias not found: ').append(alias)
+                }
+              } catch(Exception ex){ status=500; sb.append('ERROR: ').append(ex.message) }
+              ff = session.write(ff){ os -> os.write(sb.toString().getBytes(StandardCharsets.UTF_8)) }
+              ff = session.putAttribute(ff,'http.status', String.valueOf(status))
+              session.transfer(ff, REL_SUCCESS)
+        - id: http-resp
+          name: HandleHttpResponse
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: "${http.status}"
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+      connections:
+        - source: http-req
+          destination: parse
+          relationships: [success]
+        - source: parse
+          destination: run
+          relationships: [success]
+        - source: run
+          destination: http-resp
+          relationships: [success]

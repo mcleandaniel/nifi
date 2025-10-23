@@ -164,3 +164,22 @@ def test_params_plan_dispatch(tmp_path: Path) -> None:
     # Basic sanity checks
     assert "ctx-all" in payload
     assert "API_URL" in payload
+
+
+def test_inspect_bulletins_dispatch() -> None:
+    captured = {}
+
+    def handler(*, config):
+        captured["called"] = True
+        return CommandResult(message="Recent bulletins", data={"total": 0})
+
+    key = ("inspect", "bulletins")
+    original = DISPATCH_TABLE.get(key)
+    DISPATCH_TABLE[key] = handler  # type: ignore[assignment]
+    try:
+        result = runner.invoke(app, ["inspect", "bulletins", "--output", "json"])
+    finally:
+        if original is not None:
+            DISPATCH_TABLE[key] = original
+    assert result.exit_code == 0
+    assert captured.get("called") is True

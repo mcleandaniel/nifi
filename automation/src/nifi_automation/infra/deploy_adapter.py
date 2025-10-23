@@ -50,6 +50,26 @@ def deploy_flow(client: NiFiClient, spec_path: Path, *, dry_run: bool = False) -
         return {"dry_run": True, "summary": _summarize_flow_spec(spec)}
 
     service_map = ensure_root_controller_services(client)
+    # Opportunistically map a pre-existing StandardSSLContextService named 'Workflow SSL'
+    # to the alias key used in flow specs ('ssl-context'). This lets flows reference
+    # an SSL Context Service created outside the manifest (e.g., by the trust CLI).
+    try:
+        resp = client._client.get(
+            "/flow/process-groups/root/controller-services",
+            params={"includeInherited": "false"},
+        )
+        resp.raise_for_status()
+        for svc in resp.json().get("controllerServices") or []:
+            comp = svc.get("component", {})
+            if (
+                comp.get("type") == "org.apache.nifi.ssl.StandardSSLContextService"
+                and comp.get("name") == "Workflow SSL"
+            ):
+                service_map.setdefault("ssl-context", comp.get("id"))
+                break
+    except Exception:
+        # Non-fatal; flows that reference 'ssl-context' will fail if the service is absent.
+        pass
     process_group_id = deploy_flow_from_file(
         client,
         resolved,

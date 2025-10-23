@@ -1,0 +1,40 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: LibraryHarnessHTTP
+      description: |
+        Overview: Minimal HTTP harness that wires request/response through library PGs.
+        Technical: `HandleHttpRequest` (port 18081, `/libtest`) → EchoLogger (in/out ports) → AttributeTagger → `HandleHttpResponse` (204).
+        Uses the process-library and is composed via `automation/scripts/compose_with_library.py` at deploy time.
+      library_includes:
+        - name: EchoLogger
+        - name: AttributeTagger
+      processors:
+        - id: http-request
+          name: HandleHttpRequest
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: "18081"
+            Allowed Paths: "/libtest"
+            HTTP Context Map: http-context-map
+        - id: http-response
+          name: HandleHttpResponse
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: "204"
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+      connections:
+        - name: Request to Echo
+          source: http-request
+          destination: EchoLogger.in
+          relationships: [success]
+        - name: Echo to Tagger
+          source: EchoLogger.out
+          destination: AttributeTagger.in
+          relationships: [success]
+        - name: Tagger to Response
+          source: AttributeTagger.out
+          destination: http-response
+          relationships: [success]
+

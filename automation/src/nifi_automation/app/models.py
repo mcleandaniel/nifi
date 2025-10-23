@@ -55,3 +55,11 @@ class AppConfig:
     output: str
     verbose: bool
     dry_run: bool = False
+    # Optional: processor type hint for describe commands
+    proc_type: Optional[str] = None
+    # Trust ops parameters
+    ts_name: Optional[str] = None
+    ts_pass: Optional[str] = None
+    ts_type: Optional[str] = None
+    trust_url: Optional[str] = None
+    ts_alias: Optional[str] = None

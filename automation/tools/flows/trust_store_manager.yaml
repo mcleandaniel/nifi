@@ -1,0 +1,192 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: Tools_TrustStoreManager
+      description: |
+        Overview: Operator-only utilities to manage dedicated truststores for workflows. No HTTP ingress; each action is
+        triggered manually by running its GenerateFlowFile once. Truststores are created under
+        /opt/nifi/nifi-current/conf/truststores and are never the default truststore.
+        Technical: Four independent subflows: Create (ensure dir), Add (fetch remote cert and import), Remove (delete alias),
+        Inspect (list entries). All implemented via ExecuteStreamCommand with Command Path=/bin/bash and fixed, whitelisted
+        command strings. Required attributes are set via the adjacent UpdateAttribute before triggering.
+      processors:
+        # Create (ensure directory exists; keystore is created on first add)
+        - id: gen-create
+          name: Create Truststore (trigger)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          properties:
+            Batch Size: "1"
+            Scheduling Strategy: TIMER_DRIVEN
+            Run Schedule: "24000 h"
+        - id: ua-create
+          name: Set Params (create)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            ts.name: local-nifi
+            ts.type: JKS
+            ts.pass: changeMe123!
+        - id: exec-create
+          name: Exec (create dir)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; mkdir -p "$TS_DIR"; echo "Ensured $TS_DIR"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: log-create
+          name: Log (create)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          properties: {}
+
+        # Add (fetch remote cert and import)
+        - id: gen-add
+          name: Add Certificate (trigger)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          properties:
+            Batch Size: "1"
+            Scheduling Strategy: TIMER_DRIVEN
+            Run Schedule: "24000 h"
+        - id: ua-add
+          name: Set Params (add)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            ts.name: local-nifi
+            ts.type: JKS
+            ts.pass: changeMe123!
+            url.host: "${hostname()}"
+            url.port: "8443"
+            alias: local-nifi
+        - id: exec-add
+          name: Exec (add)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; NAME='${ts.name}'; TYPE='${ts.type}'; PASS='${ts.pass}'; HOST='${url.host}'; PORT='${url.port}'; ALIAS='${alias}';
+              FILE="$TS_DIR/${NAME}.p12"; TMP=$(mktemp "/opt/nifi/nifi-current/conf/cert-XXXXXX.pem");
+              if command -v keytool >/dev/null 2>&1; then keytool -printcert -rfc -sslserver "${HOST}:${PORT}" > "$TMP"; else echo "keytool not found" >&2; exit 2; fi;
+              c=0; awk 'BEGIN{n=0} /BEGIN CERTIFICATE/{n++} {print > ("/opt/nifi/nifi-current/conf/cert-" n ".pem")}' "$TMP"; rm -f "$TMP";
+              for p in /opt/nifi/nifi-current/conf/cert-*.pem; do [ -f "$p" ] || continue; A="$ALIAS"; [ $c -gt 0 ] && A="${ALIAS}-${c}"; c=$((c+1));
+              keytool -importcert -noprompt -alias "$A" -file "$p" -keystore "$FILE" -storetype "$TYPE" -storepass "$PASS"; rm -f "$p"; done;
+              echo "Imported certs for ${HOST}:${PORT} into $FILE"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: log-add
+          name: Log (add)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          properties: {}
+
+        # Remove alias
+        - id: gen-remove
+          name: Remove Alias (trigger)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          properties:
+            Batch Size: "1"
+            Scheduling Strategy: TIMER_DRIVEN
+            Run Schedule: "24000 h"
+        - id: ua-remove
+          name: Set Params (remove)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            ts.name: local-nifi
+            ts.type: JKS
+            ts.pass: changeMe123!
+            alias: local-nifi
+        - id: exec-remove
+          name: Exec (remove)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; NAME='${ts.name}'; TYPE='${ts.type}'; PASS='${ts.pass}'; ALIAS='${alias}'; FILE="$TS_DIR/${NAME}.p12";
+              keytool -delete -alias "$ALIAS" -keystore "$FILE" -storetype "$TYPE" -storepass "$PASS"; echo "Removed alias $ALIAS from $FILE"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: log-remove
+          name: Log (remove)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          properties: {}
+
+        # Inspect store
+        - id: gen-inspect
+          name: Inspect Truststore (trigger)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          properties:
+            Batch Size: "1"
+            Scheduling Strategy: TIMER_DRIVEN
+            Run Schedule: "24000 h"
+        - id: ua-inspect
+          name: Set Params (inspect)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            ts.name: local-nifi
+            ts.type: JKS
+            ts.pass: changeMe123!
+        - id: exec-inspect
+          name: Exec (inspect)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; NAME='${ts.name}'; TYPE='${ts.type}'; PASS='${ts.pass}'; FILE="$TS_DIR/${NAME}.p12";
+              keytool -list -v -rfc -keystore "$FILE" -storetype "$TYPE" -storepass "$PASS" | sed -n '1,120p'
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: log-inspect
+          name: Log (inspect)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          properties: {}
+
+      connections:
+        # Create wiring
+        - source: gen-create
+          destination: ua-create
+          relationships: [success]
+        - source: ua-create
+          destination: exec-create
+          relationships: [success]
+        - source: exec-create
+          destination: log-create
+          relationships: [output stream]
+
+        # Add wiring
+        - source: gen-add
+          destination: ua-add
+          relationships: [success]
+        - source: ua-add
+          destination: exec-add
+          relationships: [success]
+        - source: exec-add
+          destination: log-add
+          relationships: [output stream]
+
+        # Remove wiring
+        - source: gen-remove
+          destination: ua-remove
+          relationships: [success]
+        - source: ua-remove
+          destination: exec-remove
+          relationships: [success]
+        - source: exec-remove
+          destination: log-remove
+          relationships: [output stream]
+
+        # Inspect wiring
+        - source: gen-inspect
+          destination: ua-inspect
+          relationships: [success]
+        - source: ua-inspect
+          destination: exec-inspect
+          relationships: [success]
+        - source: exec-inspect
+          destination: log-inspect
+          relationships: [output stream]

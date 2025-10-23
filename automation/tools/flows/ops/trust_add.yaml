@@ -1,0 +1,57 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: Tools_Trust_Add
+      description: |
+        Add a remote HTTPS certificate to a dedicated truststore under /opt/nifi/nifi-current/conf/truststores.
+        Operator-only; trigger via GenerateFlowFile Run once.
+      processors:
+        - id: gen-add
+          name: Trigger (add)
+          type: org.apache.nifi.processors.standard.GenerateFlowFile
+          properties:
+            Batch Size: "1"
+            Scheduling Strategy: TIMER_DRIVEN
+            Run Schedule: "24000 h"
+        - id: ua-add
+          name: Params (add)
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            ts.name: local-nifi
+            ts.type: JKS
+            ts.pass: changeMe123!
+            url.host: "${hostname()}"
+            url.port: "8443"
+            alias: local-nifi
+        - id: exec-add
+          name: Exec (add)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; TS_DIR=/opt/nifi/nifi-current/conf/truststores; NAME='${ts.name}'; TYPE='${ts.type}'; PASS='${ts.pass}'; HOST='${url.host}'; PORT='${url.port}'; ALIAS='${alias}';
+              TYPE_UP=$(echo "$TYPE" | tr '[:lower:]' '[:upper:]'); case "$TYPE_UP" in JKS) EXT=jks;; PKCS12|P12) EXT=p12;; BCFKS) EXT=bcfks;; *) EXT=jks;; esac;
+              FILE="$TS_DIR/${NAME}.$EXT"; TMP=$(mktemp "/opt/nifi/nifi-current/conf/cert-XXXXXX.pem");
+              keytool -printcert -rfc -sslserver "${HOST}:${PORT}" > "$TMP";
+              c=0; awk 'BEGIN{n=0} /BEGIN CERTIFICATE/{n++} {print > ("/opt/nifi/nifi-current/conf/cert-" n ".pem")}' "$TMP"; rm -f "$TMP";
+              for p in /opt/nifi/nifi-current/conf/cert-*.pem; do [ -f "$p" ] || continue; A="$ALIAS"; [ $c -gt 0 ] && A="${ALIAS}-${c}"; c=$((c+1));
+              keytool -importcert -noprompt -alias "$A" -file "$p" -keystore "$FILE" -storetype "$TYPE" -storepass "$PASS"; rm -f "$p"; done;
+              echo "Imported certs for ${HOST}:${PORT} into $FILE"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: log-add
+          name: Log (add)
+          type: org.apache.nifi.processors.standard.LogAttribute
+          properties: {}
+      connections:
+        - source: gen-add
+          destination: ua-add
+          relationships: [success]
+        - source: ua-add
+          destination: exec-add
+          relationships: [success]
+        - source: exec-add
+          destination: log-add
+          relationships: [output stream]

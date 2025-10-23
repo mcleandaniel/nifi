@@ -15,14 +15,15 @@
   <body>
     <div class="grid" id="grid"></div>
     <script>
-      fetch('../svg/manifest.json').then(r=>r.json()).then(m => {
+      const THEME = 'dark';
+      fetch(`../svg/${THEME}/manifest.json`).then(r=>r.json()).then(m => {
         const grid = document.getElementById('grid');
         m.icons.forEach(f => {
           const name = f.replace(/\.svg$/, '');
           const div = document.createElement('div');
           div.className = 'card';
           const img = document.createElement('img');
-          img.src = '../svg/' + f;
+          img.src = `../svg/${THEME}/` + f;
           const p = document.createElement('div');
           p.className = 'name';
           p.textContent = name;
@@ -33,4 +34,3 @@
     </script>
   </body>
 </html>
-

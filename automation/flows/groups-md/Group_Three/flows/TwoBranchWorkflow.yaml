@@ -1,73 +1,9 @@
 name: TwoBranchWorkflow
+phase: draft
 description: 'Overview: Splits content and routes into two parallel branches based
   on fragment index parity.
 
   Technical: GenerateFlowFile emits multi-line text; SplitText splits into single-line
-  FlowFiles (fragment.index set).
-
-  RouteOnAttribute sends even indices to Branch A and odd indices to Branch B using
-  Expression Language modulo tests.
-
-  Each branch logs independently. Demonstrates multi-branch fan-out.
-
-  '
-processors:
-- id: generate
-  name: Generate FlowFile (multiline)
-  type: org.apache.nifi.processors.standard.GenerateFlowFile
-  properties:
-    Batch Size: '1'
-    Data Format: Text
-    Custom Text: 'one
-
-      two
-
-      three
-
-      four
-
-      '
-- id: split
-  name: SplitText (1 line)
-  type: org.apache.nifi.processors.standard.SplitText
-  properties:
-    Line Split Count: '1'
-    Remove Trailing Newlines: 'true'
-- id: route
-  name: RouteOnAttribute (even/odd)
-  type: org.apache.nifi.processors.standard.RouteOnAttribute
-  properties:
-    branchA: ${fragment.index:mod(2):equals(0)}
-    branchB: ${fragment.index:mod(2):equals(1)}
-- id: logA
-  name: LogAttribute (A)
-  type: org.apache.nifi.processors.standard.LogAttribute
-- id: logB
-  name: LogAttribute (B)
-  type: org.apache.nifi.processors.standard.LogAttribute
-connections:
-- name: Generate to Split
-  source: generate
-  destination: split
-  relationships:
-  - success
-- name: Split to Route
-  source: split
-  destination: route
-  relationships:
-  - splits
-- name: Route to A
-  source: route
-  destination: logA
-  relationships:
-  - branchA
-- name: Route to B
-  source: route
-  destination: logB
-  relationships:
-  - branchB
-auto_terminate:
-  logA:
-  - success
-  logB:
-  - success
+  FlowFiles (fragment.index set).'
+processors: []
+connections: []

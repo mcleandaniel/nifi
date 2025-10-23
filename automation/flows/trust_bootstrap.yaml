@@ -1,0 +1,51 @@
+process_group:
+  name: NiFi Flow
+  process_groups:
+    - name: TrustBootstrapWorkflow
+      description: |
+        Overview: HTTP-triggered trust bootstrap that fetches the NiFi HTTPS certificate from https://$(hostname):8443 and imports it into the truststore.
+        Technical: HandleHttpRequest (/trust/local) → ExecuteProcess runs '/opt/nifi/scripts/nifi_trust_helper.sh local --alias local-nifi' → HandleHttpResponse (text/plain). Failure routes return 500.
+      processors:
+        - id: http-request
+          name: HandleHttpRequest
+          type: org.apache.nifi.processors.standard.HandleHttpRequest
+          properties:
+            Listening Port: "18081"
+            Allowed Paths: "/trust/local"
+            HTTP Context Map: http-context-map
+        - id: exec
+          name: ExecuteStreamCommand (trust helper)
+          type: org.apache.nifi.processors.standard.ExecuteStreamCommand
+          properties:
+            Command Path: /bin/bash
+            Command Arguments Strategy: Command Arguments Property
+            Argument Delimiter: ";"
+            Command Arguments: >-
+              -lc;set -euo pipefail; NF_CONF_DIR=/opt/nifi/nifi-current/conf; PROPS="$NF_CONF_DIR/nifi.properties";
+              HOST=${HOST:-$(hostname)}; PORT=${PORT:-8443};
+              TS_FILE=$(grep -E "^nifi.security.truststore=" "$PROPS" | tail -n1 | sed -E "s/^[^=]+=//");
+              TS_PASS=$(grep -E "^nifi.security.truststorePasswd=" "$PROPS" | tail -n1 | sed -E "s/^[^=]+=//");
+              TS_TYPE=$(grep -E "^nifi.security.truststoreType=" "$PROPS" | tail -n1 | sed -E "s/^[^=]+=//");
+              TS_TYPE=${TS_TYPE:-PKCS12}; TMP="$NF_CONF_DIR/cert-$$.pem";
+              keytool -printcert -rfc -sslserver "${HOST}:${PORT}" > "$TMP";
+              mkdir -p "$NF_CONF_DIR/truststores"; NEW_TS="$NF_CONF_DIR/truststores/local-nifi.p12";
+              keytool -importcert -noprompt -alias "local-nifi-$(date +%s)" -file "$TMP" -keystore "$NEW_TS" -storetype "$TS_TYPE" -storepass "${TS_PASS:-changeMe123!}";
+              rm -f "$TMP"; echo "Imported cert for ${HOST}:${PORT} into $NEW_TS"
+            Ignore STDIN: "true"
+            Working Directory: /opt/nifi
+        - id: http-ok
+          name: HandleHttpResponse (ok)
+          type: org.apache.nifi.processors.standard.HandleHttpResponse
+          properties:
+            HTTP Status Code: "200"
+            Content-Type: text/plain
+            HTTP Context Map: http-context-map
+      connections:
+        - name: request→exec
+          source: http-request
+          destination: exec
+          relationships: [success]
+        - name: exec→ok
+          source: exec
+          destination: http-ok
+          relationships: [success]
