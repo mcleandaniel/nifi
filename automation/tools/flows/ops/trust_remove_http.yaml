@@ -13,6 +13,28 @@ process_group:
             Listening Port: "18081"
             Allowed Paths: "/tools/trust/remove"
             HTTP Context Map: http-context-map
+        - id: inject
+          name: Inject Key
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            tools.expected.key: SET_BY_CLI
+        - id: auth
+          name: Auth (Groovy)
+          type: org.apache.nifi.processors.script.ExecuteScript
+          properties:
+            Script Engine: Groovy
+            Script Body: |
+              import java.nio.charset.StandardCharsets
+              def ff = session.get(); if(!ff) return
+              def got = ff.getAttribute('http.headers.X-Tools-Key') ?: ''
+              def exp = ff.getAttribute('tools.expected.key') ?: ''
+              if(got != exp){
+                ff = session.putAttribute(ff,'http.status','401')
+                ff = session.write(ff){ os -> os.write('Unauthorized'.getBytes(StandardCharsets.UTF_8)) }
+                session.transfer(ff, REL_FAILURE)
+              } else {
+                session.transfer(ff, REL_SUCCESS)
+              }
         - id: parse
           name: Parse Query (Groovy)
           type: org.apache.nifi.processors.script.ExecuteScript
@@ -72,8 +94,17 @@ process_group:
             HTTP Context Map: http-context-map
       connections:
         - source: http-req
+          destination: inject
+          relationships: [success]
+        - source: inject
+          destination: auth
+          relationships: [success]
+        - source: auth
           destination: parse
           relationships: [success]
+        - source: auth
+          destination: http-resp
+          relationships: [failure]
         - source: parse
           destination: run
           relationships: [success]

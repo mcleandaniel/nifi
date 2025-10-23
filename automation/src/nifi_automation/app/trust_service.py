@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import time
 from pathlib import Path
+import secrets
 from typing import Dict, Optional, Tuple
 
 from .client import open_client
@@ -155,13 +156,20 @@ def create(*, config: AppConfig) -> CommandResult:
     if not config.ts_name or not config.ts_pass:
         raise BadInputError("--name and --password are required")
     spec = TOOLS_DIR / "trust_create_http.yaml"
+    shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
+        # inject shared key
+        pg_id = _find_pg_by_name(client, "Tools_Trust_Create_HTTP")
+        if pg_id:
+            inj = _find_processor_by_name(client, pg_id, "Inject Key")
+            if inj:
+                _update_processor_properties(client, inj, {"tools.expected.key": shared_key})
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Create_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Create_HTTP")
     params = {"name": config.ts_name, "type": (config.ts_type or "JKS"), "pass": config.ts_pass}
-    r = _tools_get("/tools/trust/create", params=params, timeout=10.0)
+    r = _tools_get("/tools/trust/create", params=params, timeout=10.0, key=shared_key)
     r.raise_for_status()
     # Cleanup ephemeral tools PG
     _delete_tools_pg(config, pg_name="Tools_Trust_Create_HTTP")
@@ -172,8 +180,14 @@ def add(*, config: AppConfig) -> CommandResult:
     if not config.ts_name or not config.ts_pass or not config.trust_url or not config.ts_alias:
         raise BadInputError("--name, --password, --url and --alias are required")
     spec = TOOLS_DIR / "trust_add_http.yaml"
+    shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
+        pg_id = _find_pg_by_name(client, "Tools_Trust_Add_HTTP")
+        if pg_id:
+            inj = _find_processor_by_name(client, pg_id, "Inject Key")
+            if inj:
+                _update_processor_properties(client, inj, {"tools.expected.key": shared_key})
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Add_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Add_HTTP")
@@ -184,7 +198,7 @@ def add(*, config: AppConfig) -> CommandResult:
         "url": config.trust_url,
         "alias": config.ts_alias,
     }
-    r = _tools_get("/tools/trust/add", params=params, timeout=30.0)
+    r = _tools_get("/tools/trust/add", params=params, timeout=30.0, key=shared_key)
     status = r.status_code
     details = {"status": status, "body": r.text}
     if status >= 400:
@@ -210,13 +224,19 @@ def remove(*, config: AppConfig) -> CommandResult:
     if not config.ts_name or not config.ts_pass or not config.ts_alias:
         raise BadInputError("--name, --password and --alias are required")
     spec = TOOLS_DIR / "trust_remove_http.yaml"
+    shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
+        pg_id = _find_pg_by_name(client, "Tools_Trust_Remove_HTTP")
+        if pg_id:
+            inj = _find_processor_by_name(client, pg_id, "Inject Key")
+            if inj:
+                _update_processor_properties(client, inj, {"tools.expected.key": shared_key})
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Remove_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Remove_HTTP")
     params = {"name": config.ts_name, "type": (config.ts_type or "JKS"), "pass": config.ts_pass, "alias": config.ts_alias}
-    r = _tools_get("/tools/trust/remove", params=params, timeout=10.0)
+    r = _tools_get("/tools/trust/remove", params=params, timeout=10.0, key=shared_key)
     status = r.status_code
     details = {"status": status, "body": r.text}
     if status >= 400:
@@ -234,8 +254,14 @@ def inspect(*, config: AppConfig) -> CommandResult:
         raise BadInputError("--name and --password are required")
     # Deploy HTTP-triggered inspect flow, then call it and return body
     spec = TOOLS_DIR / "trust_inspect_http.yaml"
+    shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
+        pg_id = _find_pg_by_name(client, "Tools_Trust_Inspect_HTTP")
+        if pg_id:
+            inj = _find_processor_by_name(client, pg_id, "Inject Key")
+            if inj:
+                _update_processor_properties(client, inj, {"tools.expected.key": shared_key})
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Inspect_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Inspect_HTTP")
@@ -245,7 +271,7 @@ def inspect(*, config: AppConfig) -> CommandResult:
         "type": (config.ts_type or "JKS"),
         "pass": config.ts_pass,
     }
-    r = _tools_get("/tools/trust/inspect", params=params, timeout=15.0)
+    r = _tools_get("/tools/trust/inspect", params=params, timeout=15.0, key=shared_key)
     # Do not raise; return body on error to aid debugging
     # Parse: expect plain text with a listing block followed by '---' then keytool output
     text = r.text or ""
@@ -291,14 +317,14 @@ def _delete_tools_pg(config: AppConfig, *, pg_name: str) -> None:
                 break
 
 
-def _tools_get(path: str, *, params: dict, timeout: float) -> httpx.Response:
+def _tools_get(path: str, *, params: dict, timeout: float, key: str) -> httpx.Response:
     """Call the ephemeral tools HTTP endpoint trying the preferred tools port, then 18081 as a fallback."""
     ports = [TOOLS_PORT, 18081]
     last_exc: Optional[Exception] = None
     for p in ports:
         url = f"http://127.0.0.1:{p}{path}"
         try:
-            return httpx.get(url, params=params, timeout=timeout)
+            return httpx.get(url, params=params, timeout=timeout, headers={"X-Tools-Key": key})
         except Exception as exc:  # pragma: no cover - network
             last_exc = exc
             continue
@@ -356,3 +382,44 @@ def _ensure_workflow_ssl_context(
             new_id = created.get("id")
             if new_id:
                 client.enable_controller_service(new_id)
+
+
+def create_ssl_context(*, config: AppConfig) -> CommandResult:
+    """Create/enable an SSL Context Service named 'SSL TS:<name>' for the given truststore.
+
+    Uses --ts-name (service suffix), --ts-type, --ts-password, and optional --ts-file.
+    Default truststore path: /opt/nifi/nifi-current/conf/truststores/<name>.<ext>
+    """
+    if not config.ts_name or not config.ts_pass:
+        raise BadInputError("--ts-name and --ts-password are required")
+    ts_type = (config.ts_type or "PKCS12").upper()
+    ext = "jks" if ts_type == "JKS" else ("p12" if ts_type in {"PKCS12", "P12"} else ("bcfks" if ts_type == "BCFKS" else "p12"))
+    ts_file = config.ts_file or f"/opt/nifi/nifi-current/conf/truststores/{config.ts_name}.{ext}"
+    svc_name = f"SSL TS:{config.ts_name}"
+    props = {
+        "Truststore Filename": ts_file,
+        "Truststore Type": ts_type,
+        "Truststore Password": config.ts_pass,
+    }
+    with open_client(config) as client:
+        # Find by name
+        resp = client._client.get("/flow/process-groups/root/controller-services", params={"includeInherited": "false"})
+        resp.raise_for_status()
+        svc_id = None
+        for svc in resp.json().get("controllerServices") or []:
+            comp = svc.get("component", {})
+            if comp.get("name") == svc_name and comp.get("type") == "org.apache.nifi.ssl.StandardSSLContextService":
+                svc_id = comp.get("id"); break
+        if svc_id:
+            ent = client.get_controller_service(svc_id)
+            rev = ent.get("revision", {})
+            cfg = ent.get("component", {}).get("properties", {}) or {}
+            cfg.update(props)
+            client._client.put(f"/controller-services/{svc_id}", json={"revision": rev, "component": {"id": svc_id, "name": svc_name, "properties": cfg}}).raise_for_status()
+            client.enable_controller_service(svc_id)
+            return CommandResult(message=f"Updated and enabled {svc_name}")
+        created = client.create_controller_service(parent_id="root", name=svc_name, type_name="org.apache.nifi.ssl.StandardSSLContextService", properties=props)
+        new_id = created.get("id")
+        if new_id:
+            client.enable_controller_service(new_id)
+        return CommandResult(message=f"Created and enabled {svc_name}")

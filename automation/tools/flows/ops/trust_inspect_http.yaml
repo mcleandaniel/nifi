@@ -14,6 +14,28 @@ process_group:
             Listening Port: "18081"
             Allowed Paths: "/tools/trust/inspect"
             HTTP Context Map: http-context-map
+        - id: inject
+          name: Inject Key
+          type: org.apache.nifi.processors.attributes.UpdateAttribute
+          properties:
+            tools.expected.key: SET_BY_CLI
+        - id: auth
+          name: Auth (Groovy)
+          type: org.apache.nifi.processors.script.ExecuteScript
+          properties:
+            Script Engine: Groovy
+            Script Body: |
+              import java.nio.charset.StandardCharsets
+              def ff = session.get(); if(!ff) return
+              def got = ff.getAttribute('http.headers.X-Tools-Key') ?: ''
+              def exp = ff.getAttribute('tools.expected.key') ?: ''
+              if(got != exp){
+                ff = session.putAttribute(ff,'http.status','401')
+                ff = session.write(ff){ os -> os.write('Unauthorized'.getBytes(StandardCharsets.UTF_8)) }
+                session.transfer(ff, REL_FAILURE)
+              } else {
+                session.transfer(ff, REL_SUCCESS)
+              }
         # Prepare/parse query in shell instead of NiFi processors; pass http.query.string via env
         - id: parse
           name: Parse Query (Groovy)
@@ -29,14 +51,15 @@ process_group:
               ff = session.putAllAttributes(ff, ['ts.name':name,'ts.type':type,'ts.pass':pass])
               session.transfer(ff, REL_SUCCESS)
         - id: run
-          name: Run (Groovy inspect)
+          name: Run (Groovy inspect JSON)
           type: org.apache.nifi.processors.script.ExecuteScript
           properties:
             Script Engine: Groovy
             Script Body: |
               import java.nio.charset.StandardCharsets
               import java.security.KeyStore
-              
+              import java.security.MessageDigest
+              import groovy.json.JsonOutput
               def ff = session.get(); if(!ff) return
               def dir = new File('/opt/nifi/nifi-current/conf/truststores'); dir.mkdirs()
               def name = ff.getAttribute('ts.name')?:''
@@ -44,10 +67,7 @@ process_group:
               def pass = ff.getAttribute('ts.pass')?:''
               def ext = type=='JKS'?'jks': (['PKCS12','P12'].contains(type)?'p12': (type=='BCFKS'?'bcfks':'p12'))
               def trust = new File(dir, name + '.' + ext)
-              def sb = new StringBuilder()
-              sb.append('TRUSTSTORES:\n')
-              dir.listFiles()?.each{ if(it.isFile()) sb.append(it.name).append('\n') }
-              sb.append('---\n')
+              def entries = []
               int status = 200
               try {
                 if(trust.exists()){
@@ -56,13 +76,22 @@ process_group:
                   def en = ks.aliases()
                   while(en.hasMoreElements()){
                     def a = en.nextElement()
-                    sb.append('alias: ').append(a).append('\n')
+                    def cert = ks.getCertificate(a)
+                    def x = (cert instanceof java.security.cert.X509Certificate) ? cert : null
+                    def md = MessageDigest.getInstance('SHA-256')
+                    def fp = md.digest(cert.getEncoded()).collect{ String.format('%02X', it) }.join(':')
+                    def subj = x ? x.getSubjectX500Principal().getName() : ''
+                    def iss = x ? x.getIssuerX500Principal().getName() : ''
+                    def nb = x ? x.getNotBefore().getTime() : null
+                    def na = x ? x.getNotAfter().getTime() : null
+                    entries.add([alias:a, subject:subj, issuer:iss, notBefore:nb, notAfter:na, sha256:fp])
                   }
                 } else {
-                  sb.append('missing: ').append(trust.absolutePath).append('\n')
+                  status = 404
                 }
-              } catch(Exception ex){ status=500; sb.append('ERROR: ').append(ex.message) }
-              ff = session.write(ff){ os -> os.write(sb.toString().getBytes(StandardCharsets.UTF_8)) }
+              } catch(Exception ex){ status=500 }
+              def json = JsonOutput.toJson([store:name, type:type, file:trust.absolutePath, entries:entries])
+              ff = session.write(ff){ os -> os.write(json.getBytes(StandardCharsets.UTF_8)) }
               ff = session.putAttribute(ff,'http.status', String.valueOf(status))
               session.transfer(ff, REL_SUCCESS)
         - id: http-resp
@@ -70,12 +99,21 @@ process_group:
           type: org.apache.nifi.processors.standard.HandleHttpResponse
           properties:
             HTTP Status Code: "${http.status}"
-            Content-Type: text/plain
+            Content-Type: application/json
             HTTP Context Map: http-context-map
       connections:
         - source: http-req
+          destination: inject
+          relationships: [success]
+        - source: inject
+          destination: auth
+          relationships: [success]
+        - source: auth
           destination: parse
           relationships: [success]
+        - source: auth
+          destination: http-resp
+          relationships: [failure]
         - source: parse
           destination: run
           relationships: [success]

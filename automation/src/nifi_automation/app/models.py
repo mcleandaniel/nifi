@@ -63,3 +63,4 @@ class AppConfig:
     ts_type: Optional[str] = None
     trust_url: Optional[str] = None
     ts_alias: Optional[str] = None
+    ts_file: Optional[str] = None

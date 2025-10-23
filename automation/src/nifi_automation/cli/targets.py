@@ -28,6 +28,7 @@ CANONICAL_TARGETS = {
     "bulletins": {"bulletin", "bulletins"},
     "layout": {"layout"},
     "trust": {"trust", "trust-store", "truststore"},
+    "ssl": {"ssl", "ssl-context", "sslcontext"},
 }
 
 ALIAS_TO_CANONICAL: Dict[str, str] = {

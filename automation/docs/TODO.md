@@ -103,10 +103,7 @@ Goal: Curate reusable Process Group fragments that can be injected into flows by
 
 ## Trust Store Tools (follow-ups)
 
-- Protect all tools HTTP endpoints (create/add/remove/inspect) with an authentication mechanism (token header or basic auth) to avoid unauthenticated operations. (CLI: pass header via `--auth`.)
-- Return JSON for `inspect trust` by parsing `keytool -list -rfc` output.
-- Add `ssl-context create` CLI helper to create/enable `SSL TS:<name>` for a given truststore path/password/type.
-- Optional `--ephemeral` flag to purge tools PG after completion; default remains manual delete.
+- Optional `--ephemeral` flag to purge tools PG after completion; default remains manual delete. (Implemented by default for trust CLI.)
 
 ## QueueDepthsHttpWorkflow response body
 

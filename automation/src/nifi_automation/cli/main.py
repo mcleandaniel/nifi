@@ -53,6 +53,7 @@ DISPATCH_TABLE: Dict[DispatchKey, Handler] = {
     ("add", "trust"): trust_service.add,
     ("remove", "trust"): trust_service.remove,
     ("inspect", "trust"): trust_service.inspect,
+    ("create", "ssl"): trust_service.create_ssl_context,
 }
 
 FLOWFILE_COMMANDS = {
@@ -177,6 +178,7 @@ def _report_and_exit(message: str, exit_code: ExitCode) -> None:
 @click.option("--ts-password", "ts_pass", default=None, help="Truststore password for 'trust' commands (required).")
 @click.option("--trust-url", "trust_url", default=None, help="Remote URL for 'trust add' (e.g., https://host:port).")
 @click.option("--ts-alias", "ts_alias", default=None, help="Alias name for 'trust add'/'trust remove'.")
+@click.option("--ts-file", "ts_file", default=None, help="Truststore file path for 'ssl create' (overrides default).")
 @click.option("--force", is_flag=True, help="Force queue truncation when truncating connections.")
 @click.option("--max", "max_messages", type=int, default=None, help="Max FlowFiles to drop when truncating.")
 def cli_command(
@@ -199,6 +201,7 @@ def cli_command(
     trust_url: Optional[str],
     ts_alias: Optional[str],
     ts_type_opt: Optional[str],
+    ts_file: Optional[str],
 ) -> None:
     """Primary CLI entry point implementing the verb/target grammar."""
 
@@ -240,7 +243,7 @@ def cli_command(
         proc_type=proc_type,
     )
     # Attach trust parameters for trust target
-    if target.name == "trust":
+    if target.name in {"trust", "ssl"}:
         # minimal validation here; handlers will enforce per-verb rules
         from ..app.models import AppConfig as _AC
         config = _AC(
@@ -259,6 +262,7 @@ def cli_command(
             ts_type=ts_type_opt,
             trust_url=trust_url,
             ts_alias=ts_alias,
+            ts_file=ts_file,
         )
 
     if config.verbose:
