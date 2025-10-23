@@ -311,6 +311,7 @@ process_group:
     - id: path-generate
       name: Generate FlowFile (with route)
       type: org.apache.nifi.processors.standard.GenerateFlowFile
+      comments: Writes multiline text and sets attribute route=east.
       scheduling_period: 1 min
       properties:
         Batch Size: '1'
@@ -320,6 +321,7 @@ process_group:
     - id: path-route
       name: Route On Attribute (path)
       type: org.apache.nifi.processors.standard.RouteOnAttribute
+      comments: Routes to east/west based on the 'route' attribute.
       properties:
         east: ${route:equals('east')}
         west: ${route:equals('west')}
@@ -371,6 +373,7 @@ process_group:
     - id: sm-generate
       name: Generate Records (batch)
       type: org.apache.nifi.processors.standard.GenerateRecord
+      comments: Generates 9 test records to demonstrate split/merge.
       scheduling_period: 1 min
       properties:
         record-writer: json-writer
@@ -389,6 +392,7 @@ process_group:
     - id: sm-split
       name: SplitRecord (3 per)
       type: org.apache.nifi.processors.standard.SplitRecord
+      comments: Splits incoming records into chunks of 3 for batch merge.
       properties:
         Record Reader: json-reader
         Record Writer: json-writer
@@ -396,6 +400,7 @@ process_group:
     - id: sm-merge
       name: MergeRecord (3)
       type: org.apache.nifi.processors.standard.MergeRecord
+      comments: Merges three splits back into a single FlowFile.
       properties:
         Record Reader: json-reader
         Record Writer: json-writer
@@ -443,6 +448,7 @@ process_group:
     - id: car-generate
       name: Generate FlowFile
       type: org.apache.nifi.processors.standard.GenerateFlowFile
+      comments: Emits an empty JSON object for attribute→content demo.
       scheduling_period: 1 min
       properties:
         Batch Size: '1'
@@ -451,6 +457,7 @@ process_group:
     - id: car-update
       name: UpdateAttribute (status/message)
       type: org.apache.nifi.processors.attributes.UpdateAttribute
+      comments: Sets attributes status=ok and message=hello for downstream use.
       properties:
         status: ok
         message: hello
@@ -516,6 +523,7 @@ process_group:
     - id: tb-generate
       name: Generate FlowFile (multiline)
       type: org.apache.nifi.processors.standard.GenerateFlowFile
+      comments: Multi-line content to demonstrate SplitText and branching.
       properties:
         Batch Size: '1'
         Data Format: Text
@@ -527,12 +535,14 @@ process_group:
     - id: tb-split
       name: SplitText (1 line)
       type: org.apache.nifi.processors.standard.SplitText
+      comments: Splits content into single-line FlowFiles (fragment.index set).
       properties:
         Line Split Count: '1'
         Remove Trailing Newlines: 'true'
     - id: tb-route
       name: RouteOnAttribute (even/odd)
       type: org.apache.nifi.processors.standard.RouteOnAttribute
+      comments: Routes based on fragment.index modulo 2 (even→A, odd→B).
       properties:
         branchA: "${fragment.index:mod(2):equals(0)}"
         branchB: "${fragment.index:mod(2):equals(1)}"
@@ -606,6 +616,7 @@ process_group:
     - id: src-seed
       name: Generate FlowFile (seed)
       type: org.apache.nifi.processors.standard.GenerateFlowFile
+      comments: Feeds the parent pipeline with a single seed FlowFile.
       scheduling_period: 1 min
       properties:
         Batch Size: '1'
@@ -627,6 +638,7 @@ process_group:
       - id: tg-update
         name: UpdateAttribute (enrich)
         type: org.apache.nifi.processors.attributes.UpdateAttribute
+        comments: Adds route=success attribute before record conversion.
         properties:
           route: success
       - id: tg-convert
