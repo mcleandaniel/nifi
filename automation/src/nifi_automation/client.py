@@ -229,6 +229,40 @@ class NiFiClient(AbstractContextManager["NiFiClient"]):
         response = self._client.put(f"/processors/{processor_id}", json=body)
         response.raise_for_status()
 
+    def create_label(
+        self,
+        parent_id: str,
+        text: str,
+        position: tuple[float, float],
+        width: float,
+        height: float,
+        style: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        body = {
+            "revision": {"version": 0},
+            "component": {
+                "position": {"x": position[0], "y": position[1]},
+                "label": text,
+                "width": width,
+                "height": height,
+                **({"style": style} if style else {}),
+            },
+        }
+        resp = self._client.post(f"/process-groups/{parent_id}/labels", json=body)
+        resp.raise_for_status()
+        return resp.json()["component"]
+
+    def delete_label(self, label_id: str) -> None:
+        entity = self._client.get(f"/labels/{label_id}")
+        if entity.status_code == 404:
+            return
+        entity.raise_for_status()
+        revision = entity.json().get("revision") or {}
+        params = {"version": revision.get("version", 0), "clientId": "nifi-automation"}
+        resp = self._client.delete(f"/labels/{label_id}", params=params)
+        if resp.status_code not in (200, 202, 204, 404):
+            resp.raise_for_status()
+
     def get_bulletins(self, *, limit: int = 200, after: int | None = None) -> List[Dict[str, object]]:
         params = {"limit": str(limit)}
         if after is not None:

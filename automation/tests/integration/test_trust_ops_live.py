@@ -1,4 +1,5 @@
 import os
+import sys
 import pytest
 import subprocess
 
@@ -7,7 +8,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.tools]
 
 
 def _cli(*args: str) -> int:
-    cmd = ["python", "-m", "nifi_automation.cli.main", *args]
+    # Use the same interpreter that runs pytest to preserve venv context
+    cmd = [sys.executable, "-m", "nifi_automation.cli.main", *args]
     return subprocess.call(cmd)
 
 
@@ -27,6 +29,8 @@ def test_trust_ops_cycle_live():
         "--ts-alias", ts_alias,
         "--output", "json",
     ) == 0
+    # Stop processors to free the HTTP tools port for the next tools PG
+    assert _cli("stop", "processors", "--output", "json") == 0
     # Inspect (default JKS)
     assert _cli("inspect", "trust", "--ts-name", ts_name, "--ts-password", ts_pass, "--output", "json") == 0
     # Remove alias

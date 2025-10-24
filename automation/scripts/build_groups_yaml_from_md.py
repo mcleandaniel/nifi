@@ -60,8 +60,14 @@ def load_fragment_from_file(base_dir: Path, group_name: str, flow_name: str) -> 
     return None
 
 
-def parse_group_md(md_path: Path) -> Tuple[str, str, List[str], Dict[str, List[str]]]:
-    """Extract (group_name, description, [child_names]) from a group markdown file."""
+def parse_group_md(md_path: Path) -> Tuple[str, str, List[str], Dict[str, List[str]], Dict[str, Dict[str, Any]]]:
+    """Extract (group_name, description, child_names, sections_by_name, flags_by_name)
+    from a group markdown file.
+
+    flags_by_name maps workflow name -> flags parsed from the nifidesc block, such as
+    { "live": bool, "phase": str }. Missing flags are not enforced and default to
+    permissive include behavior.
+    """
     text = md_path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
@@ -90,15 +96,40 @@ def parse_group_md(md_path: Path) -> Tuple[str, str, List[str], Dict[str, List[s
     # Child names from nifidesc blocks
     child_names: List[str] = []
     sections_by_name: Dict[str, List[str]] = {}
+    flags_by_name: Dict[str, Dict[str, Any]] = {}
     for m in re.finditer(r"```nifidesc\n(.*?)```", text, re.DOTALL):
         block = m.group(1)
-        for line in block.splitlines():
-            mm = re.match(r"\s*name:\s*(.+)\s*$", line)
-            if mm:
-                name = mm.group(1).strip()
-                if name not in child_names:
-                    child_names.append(name)
-                break
+        # Try to parse the whole block as YAML for richer metadata
+        meta: Optional[dict] = None
+        try:
+            parsed = yaml.safe_load(block)
+            if isinstance(parsed, dict):
+                meta = parsed
+        except Exception:
+            meta = None
+
+        name: Optional[str] = None
+        if meta and isinstance(meta.get("name"), str):
+            name = meta.get("name").strip()
+        else:
+            # Fallback: scan for a name: line
+            for line in block.splitlines():
+                mm = re.match(r"\s*name:\s*(.+)\s*$", line)
+                if mm:
+                    name = mm.group(1).strip()
+                    break
+        if name:
+            if name not in child_names:
+                child_names.append(name)
+            # Capture optional flags if present
+            if meta:
+                flags: Dict[str, Any] = {}
+                if "live" in meta:
+                    flags["live"] = bool(meta.get("live"))
+                if "phase" in meta and isinstance(meta.get("phase"), str):
+                    flags["phase"] = str(meta.get("phase")).strip()
+                if flags:
+                    flags_by_name[name] = flags
 
     # Keep raw lines too for optional inline YAML extraction per child
     # Map child name -> entire section text (from its nearest preceding '## ' to next '## ')
@@ -133,7 +164,7 @@ def parse_group_md(md_path: Path) -> Tuple[str, str, List[str], Dict[str, List[s
         else:
             i += 1
 
-    return group_name, desc, child_names, sections_by_name
+    return group_name, desc, child_names, sections_by_name, flags_by_name
 
 
 def extract_inline_yaml(section_lines: List[str]) -> Optional[dict]:
@@ -149,24 +180,125 @@ def extract_inline_yaml(section_lines: List[str]) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
-def build_grouped_yaml(root_name: str, groups: List[Tuple[str, str, List[str], Dict[str, List[str]]]], base_md_dir: Path) -> dict:
-    out_groups: List[Dict[str, Any]] = []
-    for gname, gdesc, child_names, sections in groups:
+def _load_default_children(base_md_dir: Path) -> List[dict]:
+    """Load child PG specs from YAML files placed directly under groups-md/.
+
+    Any YAML at groups-md/*.yaml (excluding NiFi_Flow_groups.yaml) is treated as a
+    top-level process_group child (the "default" non-grouped set).
+    """
+    defaults: List[dict] = []
+    for p in sorted(base_md_dir.glob("*.yaml")):
+        if p.name == "NiFi_Flow_groups.yaml":
+            continue
+        try:
+            data = yaml.safe_load(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        # Accept only child PG fragments (not aggregates). Expect a 'name' key and no top-level 'process_group'.
+        if not isinstance(data, dict):
+            continue
+        if data.get("process_group"):
+            # skip aggregates accidentally dropped here
+            continue
+        if data.get("name"):
+            defaults.append(data)
+    return defaults
+
+
+def build_grouped_yaml(root_name: str, groups: List[Tuple[str, str, List[str], Dict[str, List[str]], Dict[str, Dict[str, Any]]]], base_md_dir: Path) -> dict:
+    # First, build all group entries
+    group_entries: List[Dict[str, Any]] = []
+    group_child_names: set[str] = set()
+
+    def has_any_processors(spec: Dict[str, Any]) -> bool:
+        try:
+            if spec.get("processors"):
+                return True
+            for child in spec.get("process_groups") or []:
+                if isinstance(child, dict) and has_any_processors(child):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    for gname, gdesc, child_names, sections, flags_by_name in groups:
         children_specs: List[dict] = []
         for cname in child_names:
             spec = load_fragment_from_file(base_md_dir, gname, cname)
             if not spec and cname in sections:
                 spec = extract_inline_yaml(sections[cname])
             if not spec:
-                print(f"[warn] flow '{cname}' not found in groups-md; inserting stub")
-                spec = {"name": cname, "description": "", "processors": [], "connections": []}
+                print(f"[info] excluding flow '{cname}' (no fragment found)")
+                continue
+            # Exclude based on MD/YAML gating flags: phase/live
+            md_flags = (flags_by_name or {}).get(cname, {})
+            spec_phase = spec.get("phase") if isinstance(spec, dict) else None
+            spec_live = spec.get("live") if isinstance(spec, dict) else None
+            # Exclusion rules (permissive by default):
+            # - If MD sets live: false → exclude
+            # - If MD sets phase and phase != ready → exclude
+            # - If YAML sets live: false → exclude
+            # - If YAML sets phase and phase != ready → exclude
+            if isinstance(md_flags.get("live"), bool) and md_flags.get("live") is False:
+                print(f"[info] excluding flow '{cname}' (md live=false)")
+                continue
+            if isinstance(md_flags.get("phase"), str) and md_flags.get("phase").lower() != "ready":
+                print(f"[info] excluding flow '{cname}' (md phase={md_flags.get('phase')})")
+                continue
+            if isinstance(spec_live, bool) and spec_live is False:
+                print(f"[info] excluding flow '{cname}' (yaml live=false)")
+                continue
+            if isinstance(spec_phase, str) and spec_phase.lower() != "ready":
+                print(f"[info] excluding flow '{cname}' (yaml phase={spec_phase})")
+                continue
             children_specs.append(spec)
-        out_groups.append({
+        # Filter out any child specs that contain no processors recursively
+        children_specs = [s for s in children_specs if has_any_processors(s)]
+        if not children_specs:
+            print(f"[info] excluding group '{gname}' because all children lack processors")
+            continue
+        group_entries.append({
             "name": gname,
             "description": gdesc,
             "process_groups": children_specs,
         })
-    return {"process_group": {"name": root_name, "groups": out_groups}}
+        for s in children_specs:
+            n = s.get("name")
+            if isinstance(n, str) and n:
+                group_child_names.add(n)
+
+    # Load defaults and prefer defaults over duplicates
+    default_children = _load_default_children(base_md_dir)
+    filtered_defaults: List[dict] = []
+    default_names: set[str] = set()
+    for c in default_children:
+        nm = c.get("name") if isinstance(c, dict) else None
+        c_phase = c.get("phase") if isinstance(c, dict) else None
+        c_live = c.get("live") if isinstance(c, dict) else None
+        if isinstance(c_live, bool) and c_live is False:
+            print(f"[info] excluding default child '{nm}' (yaml live=false)")
+            continue
+        if isinstance(c_phase, str) and c_phase.lower() != "ready":
+            print(f"[info] excluding default child '{nm}' (yaml phase={c_phase})")
+            continue
+        if not has_any_processors(c):
+            print(f"[info] excluding default child without processors: {nm}")
+            continue
+        if isinstance(nm, str) and nm:
+            default_names.add(nm)
+        filtered_defaults.append(c)
+
+    # Remove from groups any child PG whose name is present in defaults (to allow standalone PGs outside groups)
+    final_groups: List[Dict[str, Any]] = []
+    for entry in group_entries:
+        children = [s for s in entry.get("process_groups", []) if not (isinstance(s.get("name"), str) and s.get("name") in default_names)]
+        if not children:
+            # If a group becomes empty after filtering, drop it
+            print(f"[info] excluding group '{entry.get('name')}' after default dedupe (no remaining children)")
+            continue
+        final_groups.append({"name": entry["name"], "description": entry["description"], "process_groups": children})
+
+    return {"process_group": {"name": root_name, "process_groups": filtered_defaults, "groups": final_groups}}
 
 
 def main() -> int:
@@ -180,8 +312,8 @@ def main() -> int:
     for md_path in sorted(args.md_dir.glob("*.md")):
         if md_path.name.lower() == "readme.md":
             continue  # README is documentation; not a group definition
-        gname, gdesc, child_names, sections = parse_group_md(md_path)
-        groups.append((gname, gdesc, child_names, sections))
+        gname, gdesc, child_names, sections, flags = parse_group_md(md_path)
+        groups.append((gname, gdesc, child_names, sections, flags))
 
     data = build_grouped_yaml(args.root_name, groups, args.md_dir)
     args.out.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")

@@ -1,9 +1,65 @@
 name: PathBranchWorkflow
-phase: draft
 description: 'Overview: Attribute-based branching using RouteOnAttribute with ''east''
   and ''west'' routes plus unmatched.
 
   Technical: Generate sets ''route'' attribute; RouteOnAttribute defines properties
-  ''east'' and ''west'' with NiFi'
-processors: []
-connections: []
+  ''east'' and ''west'' with NiFi
+
+  expression-language predicates; sinks are auto-terminated. Layout is router-centered
+  with sinks stacked right.
+
+  '
+processors:
+- id: generate
+  name: Generate FlowFile (with route)
+  type: org.apache.nifi.processors.standard.GenerateFlowFile
+  scheduling_period: 1 min
+  properties:
+    Batch Size: '1'
+    Data Format: Text
+    Custom Text: example payload
+    route: east
+- id: route
+  name: Route On Attribute (path)
+  type: org.apache.nifi.processors.standard.RouteOnAttribute
+  properties:
+    east: ${route:equals('east')}
+    west: ${route:equals('west')}
+- id: log_east
+  name: LogAttribute (east)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_west
+  name: LogAttribute (west)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_unmatched
+  name: LogAttribute (unmatched)
+  type: org.apache.nifi.processors.standard.LogAttribute
+connections:
+- name: Generate to Route
+  source: generate
+  destination: route
+  relationships:
+  - success
+- name: Route to East
+  source: route
+  destination: log_east
+  relationships:
+  - east
+- name: Route to West
+  source: route
+  destination: log_west
+  relationships:
+  - west
+- name: Route to Unmatched/Failure
+  source: route
+  destination: log_unmatched
+  relationships:
+  - unmatched
+  - failure
+auto_terminate:
+  log_east:
+  - success
+  log_west:
+  - success
+  log_unmatched:
+  - success

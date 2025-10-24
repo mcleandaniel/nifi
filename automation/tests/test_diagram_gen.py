@@ -48,7 +48,7 @@ def test_render_flow_diagram_light_theme(tmp_path):
         "render_flow_diagram", str(ROOT / "automation/scripts/render_flow_diagram.py")
     ).load_module()
 
-    spec = ROOT / "automation/flows/NiFi_Flow.yaml"
+    spec = ROOT / "automation/flows/groups-md/NiFi_Flow_groups.yaml"
     data = render.yaml.safe_load(spec.read_text(encoding="utf-8"))
     root_pg = data["process_group"]
     # Find a simple leaf group

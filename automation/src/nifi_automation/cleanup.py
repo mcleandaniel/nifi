@@ -207,6 +207,21 @@ def purge_process_group(client: NiFiClient, pg_id: str, *, delete_group: bool = 
     group_flow = response.json().get("processGroupFlow") or {}
     flow = group_flow.get("flow") or {}
 
+    # Delete labels first (cosmetic components)
+    for label in flow.get("labels") or []:
+        comp = label.get("component", {})
+        label_id = comp.get("id")
+        if label_id:
+            try:
+                entity = client._client.get(f"/labels/{label_id}")
+                if entity.status_code != 404:
+                    entity.raise_for_status()
+                    revision = entity.json().get("revision") or {}
+                    params = {"version": revision.get("version", 0), "clientId": CLIENT_ID}
+                    client._client.delete(f"/labels/{label_id}", params=params).raise_for_status()
+            except Exception:
+                pass
+
     for processor in flow.get("processors") or []:
         proc_id = processor.get("component", {}).get("id")
         if proc_id:

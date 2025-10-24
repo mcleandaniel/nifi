@@ -14,6 +14,7 @@ __all__ = [
     "disable_all_controllers",
     "start_all_processors",
     "stop_all_processors",
+    "stop_tools_http_listeners",
 ]
 
 POLL_INTERVAL = 0.5
@@ -106,3 +107,43 @@ def stop_all_processors(client: NiFiClient, *, timeout: float = 30.0) -> Dict[st
 
     stop_root_processors(client, timeout=timeout)
     return {"scheduled": "STOPPED"}
+
+
+def stop_tools_http_listeners(client: NiFiClient) -> Dict[str, object]:
+    """Stop any HandleHttpRequest processors inside root-level Tools_* process groups.
+
+    This avoids port conflicts with regular workflow HTTP listeners (e.g., 18081).
+    """
+    stopped = {"count": 0, "processors": []}
+    try:
+        resp = client._client.get("/flow/process-groups/root")
+        resp.raise_for_status()
+        pgs = resp.json().get("processGroupFlow", {}).get("flow", {}).get("processGroups", []) or []
+        for pg in pgs:
+            comp = pg.get("component", {}) or {}
+            pg_name = comp.get("name") or ""
+            if not pg_name.startswith("Tools_"):
+                continue
+            pg_id = comp.get("id")
+            if not pg_id:
+                continue
+            sub = client._client.get(f"/flow/process-groups/{pg_id}")
+            sub.raise_for_status()
+            flow = sub.json().get("processGroupFlow", {}).get("flow", {})
+            for proc in flow.get("processors", []) or []:
+                c = proc.get("component", {}) or {}
+                if c.get("type") == "org.apache.nifi.processors.standard.HandleHttpRequest":
+                    pid = c.get("id")
+                    if not pid:
+                        continue
+                    try:
+                        ent = client._client.get(f"/processors/{pid}").json()
+                        rev = ent.get("revision", {})
+                        client._client.put(f"/processors/{pid}/run-status", json={"revision": rev, "state": "STOPPED"}).raise_for_status()
+                        stopped["count"] += 1
+                        stopped["processors"].append(pid)
+                    except Exception:
+                        continue
+    except Exception:
+        return stopped
+    return stopped

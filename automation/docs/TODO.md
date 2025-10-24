@@ -1,5 +1,17 @@
 # TODOs
 
+## Docs Cleanup (Groups canonical)
+
+- Replace legacy references to `automation/flows/NiFi_Flow.yaml` with
+  `automation/flows/groups-md/NiFi_Flow_groups.yaml` across all docs and examples.
+  - Include READMEs, design docs, scripts comments, and tests.
+  - Keep mentions only when explicitly discussing legacy history/migration.
+  - Helper to inventory references:
+    ```bash
+    rg -n "NiFi_Flow.yaml" --ignore-case | sed -n '1,200p'
+    ```
+  - After patching, re-run integration docs commands to validate examples.
+
 ## Description Sync (Docs ↔ YAML)
 
 - CI guard: add a GitHub Actions job that runs `python automation/scripts/sync_descriptions.py --dry-run` on every PR and fails if it would modify any files. This enforces the single-source-of-truth policy without duplicating text.
@@ -28,6 +40,13 @@ Markdown-driven parameters and controller docs
 - Support `doc_refs` metadata in flow YAML (PG/component) pointing to controller MD files.
 - Add `params plan --with-md` flag to include MD hints and show provenance in output (source=md|discovered).
 
+Bulletin CLI enhancements
+- Extend `inspect bulletins` with flags:
+  - `--limit`, `--severity`, `--after` to control scope and filtering.
+- Add `monitor bulletins` mode with:
+  - `--interval` seconds, `--duration` seconds, `--after-state-file` to fetch incrementally and print rolling summaries.
+  - Optional suppression config (regex by message/component) to mute known dev-only errors.
+
 Deploy warnings
 - Add non-blocking warnings in `deploy_adapter.deploy_flow` when any top-level child PG or fragment carries `phase != ready`.
   - Surface as `result["warnings"]` to the CLI. Do not fail the deploy.
@@ -49,6 +68,17 @@ Reverse tests (leave env as found)
 - Expose `validate layout` as a CLI subcommand (status/inspect style) using `infra.layout_checker.check_layout()`:
   - Fail on overlaps in CI; report left-to-right violations (non-fatal) with counts and locations.
   - Acceptance: `nifi-automation validate layout --output json` returns `{ overlaps:[], left_to_right_violations:[...] }`.
+
+## Groups & Child Ordering
+
+- Add explicit ordering controls for groups and process_groups so builders and the deployer can produce deterministic layouts.
+  - Group order: support `order:` (int) in each group MD (`nifidesc` header area or a dedicated fenced block at the top),
+    or a per-file `order:` front-matter. Fallback: preserve MD declaration order; secondary: alphabetical.
+  - Child order: support `order:` (int) in each per‑workflow YAML fragment or in the corresponding `nifidesc` block.
+  - Builder: sort `process_group.groups` and each group’s `process_groups` by `order` if present, else by MD order, else name.
+  - Layout: use the sorted order to place columns left→right and rows top→bottom; keep inter‑group gap policy intact.
+  - Tests: add unit tests ensuring sort precedence (order > MD sequence > name) and that missing/duplicate order values are handled gracefully.
+  - Docs: document ordering fields in `automation/flows/README.md` and provide small examples.
 - Wire both validators into the integration suite and offer standalone scripts for local runs.
 
 ## Layout Optionality Tests
@@ -105,9 +135,22 @@ Goal: Curate reusable Process Group fragments that can be injected into flows by
 
 - Optional `--ephemeral` flag to purge tools PG after completion; default remains manual delete. (Implemented by default for trust CLI.)
 
+- Exclude QueueDepthsHttpWorkflow from grouped aggregate until trust workflow is complete and a working SSL Context Service is available.
+  - Re-add `Monitoring/flows/QueueDepthsHttpWorkflow.yaml` to the grouped build once:
+    - trust CLI can create/import a truststore and provision a `StandardSSLContextService` (name agreed: `Workflow SSL`).
+    - InvokeHTTP in the flow references that controller service and passes readiness tests.
+  - Track remediation in `automation/flows/groups-md/Group_Monitoring.md` (keep membership docs; do not include in aggregate for now).
+
 ## QueueDepthsHttpWorkflow response body
 
 - Ensure the `/queues` endpoint returns a non-empty HTML table. Investigate current `EvaluateJsonPath` + `ReplaceText` chain:
   - If content remains empty despite `Replacement Strategy: Always Replace`, switch to a Jolt or explicit `ReplaceText` that wraps a known JSON payload from `/flow/process-groups/root/status?recursive=true`.
   - Add an assertion in the test for presence of `<table` and a `Queued` or equivalent label.
   - Stretch goal: provide a JSON variant at `/queues.json` and keep HTML as a simple view.
+- Tidy label/group spacing
+  - Refine label width/height and padding to match actual NiFi PG/label dimensions; see docs/features/group-labels.md.
+  - Expose label paddings and colors in config; consider auto-measuring description height.
+
+## Flow Yaml
+
+- Consider a hypertext aware viewer, without the diagrams, but this is high level detail, not to be implemented yet.

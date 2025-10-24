@@ -61,6 +61,14 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
 
     with open_client(config) as client:
         try:
+            # Baseline last bulletin id to filter runtime errors for this session
+            baseline_last_id = 0
+            try:
+                payload = client.get_bulletins(limit=100, after=None)
+                if payload:
+                    baseline_last_id = max(int(it.get("id", 0)) for it in payload if isinstance(it.get("id"), int) or str(it.get("id")).isdigit())
+            except Exception:
+                baseline_last_id = 0
             _log(config, "[flow] purging NiFi root before deployment")
             purge_adapter.graceful_purge(client)
             _log(config, "[flow] deploying flow specification")
@@ -83,10 +91,14 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
 
             _log(config, "[flow] waiting for deployed components to stabilize")
             _await_stable_states(config, client)
+            # Pre-emptively stop Tools_* HTTP listeners to free ports used by workflows
+            ctrl_adapter.stop_tools_http_listeners(client)
             _log(config, "[flow] enabling controller services")
             ctrl_adapter.enable_all_controllers(client, timeout=config.timeout_seconds)
             _log(config, "[flow] starting processors")
             ctrl_adapter.start_all_processors(client, timeout=config.timeout_seconds)
+            # Immediately stop Tools_* HTTP listeners to avoid port conflicts with workflow listeners
+            ctrl_adapter.stop_tools_http_listeners(client)
             _await_stable_states(config, client)
             status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
             # Include connections rollup and elevate status if backpressure is hit
@@ -98,6 +110,16 @@ def run_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
             # Require all processors RUNNING after start
             if status_token not in {"INVALID", "TRANSITION"} and not proc_roll.all_running:
                 status_token = "INVALID"
+            # Check for runtime ERROR bulletins emitted after baseline and flag as invalid
+            try:
+                bulletins = client.get_bulletins(limit=200, after=None)
+                new_errors = [b for b in bulletins if (b.get("level") == "ERROR" and int(b.get("id", 0)) > baseline_last_id)]
+                if new_errors:
+                    details = details or {}
+                    details["bulletins"] = {"errors": new_errors}
+                    status_token = "INVALID"
+            except Exception:
+                pass
         except ValidationError as exc:
             details = exc.details or diag_adapter.gather_validation_details(client)
             return CommandResult(
@@ -179,10 +201,21 @@ def deploy_flow(*, config: AppConfig, flowfile: Path) -> CommandResult:
 def up_flow(*, config: AppConfig) -> CommandResult:
     with open_client(config) as client:
         try:
+            baseline_last_id = 0
+            try:
+                payload = client.get_bulletins(limit=100, after=None)
+                if payload:
+                    baseline_last_id = max(int(it.get("id", 0)) for it in payload if isinstance(it.get("id"), int) or str(it.get("id")).isdigit())
+            except Exception:
+                baseline_last_id = 0
+            # Pre-emptively stop Tools_* HTTP listeners
+            ctrl_adapter.stop_tools_http_listeners(client)
             _log(config, "[flow] enabling controller services")
             ctrl_adapter.enable_all_controllers(client, timeout=config.timeout_seconds)
             _log(config, "[flow] starting processors")
             ctrl_adapter.start_all_processors(client, timeout=config.timeout_seconds)
+            # Stop Tools_* HTTP listeners to avoid port conflicts
+            ctrl_adapter.stop_tools_http_listeners(client)
             _await_stable_states(config, client)
             status_token, proc_roll, ctrl_roll, details = _collect_flow_status(client)
             connections = status_adapter.fetch_connections(client)["items"]
@@ -190,6 +223,16 @@ def up_flow(*, config: AppConfig) -> CommandResult:
             details["connections"] = {"counts": conn_roll.counts, "worst": conn_roll.worst}
             if conn_roll.worst == "BLOCKED":
                 status_token = "INVALID"
+            # Bulletin check after start
+            try:
+                bulletins = client.get_bulletins(limit=200, after=None)
+                new_errors = [b for b in bulletins if (b.get("level") == "ERROR" and int(b.get("id", 0)) > baseline_last_id)]
+                if new_errors:
+                    details = details or {}
+                    details["bulletins"] = {"errors": new_errors}
+                    status_token = "INVALID"
+            except Exception:
+                pass
         except ValidationError as exc:
             details = exc.details or diag_adapter.gather_validation_details(client)
             return CommandResult(

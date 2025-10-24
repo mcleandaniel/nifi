@@ -51,7 +51,7 @@ def test_cli_start_stop_enable_disable() -> None:
     _ensure_nifi_available()
 
     # Ensure something is deployed; reuse aggregate spec
-    flow_spec = Path("automation/flows/NiFi_Flow.yaml").resolve()
+    flow_spec = Path("automation/flows/groups-md/NiFi_Flow_groups.yaml").resolve()
     _run_cli(["deploy", "flow", str(flow_spec), "--output", "json"])
 
     # Processors: stop then start

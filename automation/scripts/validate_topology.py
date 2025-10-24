@@ -12,7 +12,7 @@ from nifi_automation.infra.diag_adapter import validate_deployed_topology
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Validate deployed NiFi topology against a flow spec")
-    ap.add_argument("spec", nargs="?", default="automation/flows/NiFi_Flow.yaml", help="Path to flow YAML")
+    ap.add_argument("spec", nargs="?", default="automation/flows/groups-md/NiFi_Flow_groups.yaml", help="Path to flow YAML")
     args = ap.parse_args()
 
     cfg = AppConfig(
@@ -27,4 +27,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

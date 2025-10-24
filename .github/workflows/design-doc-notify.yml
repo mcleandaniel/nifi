@@ -1,0 +1,78 @@
+name: Design Doc Notify (layout orientation)
+
+on:
+  push:
+    paths:
+      - docs/features/2025-10-24-layout-orientation-toggle.md
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - docs/features/2025-10-24-layout-orientation-toggle.md
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract issue number and context
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="docs/features/2025-10-24-layout-orientation-toggle.md"
+          if [[ -f "$FILE" ]]; then
+            LINK_LINE=$(grep -E '^- Links:' "$FILE" || true)
+            ISSUE_URL=$(printf "%s\n" "$LINK_LINE" | grep -Eo 'https://github.com/[^ ]+/issues/[0-9]+' | head -n1 || true)
+          else
+            ISSUE_URL=""
+          fi
+          if [[ -z "$ISSUE_URL" ]]; then
+            echo "issue=1" >> "$GITHUB_OUTPUT"   # fallback; adjust if needed
+          else
+            NUM=$(echo "$ISSUE_URL" | sed -E 's#.*/issues/([0-9]+).*#\1#')
+            echo "issue=$NUM" >> "$GITHUB_OUTPUT"
+          fi
+          # Context info
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "event=pr" >> "$GITHUB_OUTPUT"
+            echo "pr=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "event=push" >> "$GITHUB_OUTPUT"
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+            echo "compare=${{ github.event.compare }}" >> "$GITHUB_OUTPUT" || true
+          fi
+
+      - name: Comment on tracking issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue_number = Number("${{ steps.meta.outputs.issue }}");
+            const filePath = "docs/features/2025-10-24-layout-orientation-toggle.md";
+            let body;
+            if ("${{ steps.meta.outputs.event }}" === "pr") {
+              const pr = Number("${{ steps.meta.outputs.pr }}");
+              body = `Design doc updated in PR #${pr}: \`${filePath}\`\n\nPlease review updates in the canonical doc (do not copy to the issue).`;
+            } else {
+              const sha = "${{ steps.meta.outputs.sha }}";
+              const compare = "${{ steps.meta.outputs.compare }}";
+              const owner = context.repo.owner;
+              const repo = context.repo.repo;
+              const link = compare || `https://github.com/${owner}/${repo}/commit/${sha}`;
+              body = `Design doc updated on ${context.ref}: \`${filePath}\`\n\nCommit: ${link}\n\nCanonical doc remains the source of truth.`;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number,
+              body
+            });
+

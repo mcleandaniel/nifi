@@ -50,6 +50,10 @@ def _run_cli(args: list[str]) -> dict[str, object]:
 def test_final_processors_running() -> None:
     """Ensure the environment ends with processors RUNNING for operator convenience."""
     _ensure_nifi_available()
+    # If nothing is deployed (no processors), do not deploy anything here; tests must fix the state
+    status_procs = _run_cli(["status", "processors", "--output", "json"])
+    counts = (status_procs.get("data") or {}).get("counts") or {}
+    assert counts, "No processors found at end of run; tests must deploy at least one processor"
     _run_cli(["start", "processors", "--output", "json"])
     out = _run_cli(["status", "processors", "--output", "json"])
     assert out.get("status") == "RUNNING"

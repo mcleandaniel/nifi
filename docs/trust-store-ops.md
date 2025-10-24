@@ -51,4 +51,4 @@ python -m nifi_automation.cli.main run flow automation/tools/flows/trust_store_m
 
 ## Notes
 - No empty-password support: supply `ts.pass`. (TODO: allow reading from an env var.)
-- These tools are intended for occasional use; delete the Tools group when done. (TODO: provide a disabled “Tools” wrapper.)
+- Tools remain deployed for inspection and reuse. Do not auto-delete after running. Use the standard purge/cleardown before a new batch of deployments; never purge or delete at the end of tests.

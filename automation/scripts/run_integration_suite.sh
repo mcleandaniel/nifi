@@ -13,10 +13,26 @@ if [ "$#" -gt 0 ]; then
   specs=$(printf "%s," "$@")
   specs=${specs%,}
 else
-  specs="automation/flows/NiFi_Flow.yaml"
+  specs="automation/flows/groups-md/NiFi_Flow_groups.yaml"
 fi
 
 export NIFI_FLOW_SPECS="$specs"
+
+# Capture bulletin baseline (last seen id) for gating runtime errors later
+BASELINE_ID=0
+if [ -f .env ]; then
+  set +u
+  set -a; source .env; set +a
+  if [ -n "${NIFI_BASE_URL:-}" ] && [ -n "${NIFI_USERNAME:-}" ] && [ -n "${NIFI_PASSWORD:-}" ]; then
+    TOKEN=$(curl -sk -X POST "${NIFI_BASE_URL}/access/token" -d "username=${NIFI_USERNAME}" -d "password=${NIFI_PASSWORD}")
+    if [ -n "$TOKEN" ]; then
+      BASELINE_ID=$(curl -sk -H "Authorization: Bearer $TOKEN" \
+        "${NIFI_BASE_URL}/flow/bulletin-board?limit=200" | \
+        jq '([.bulletinBoard.bulletins[].bulletin.id] | max) // 0')
+    fi
+  fi
+  set -u
+fi
 
 # Use the per-project venv under automation/.venv
 automation/.venv/bin/python -m nifi_automation.cli.main purge flow --output json
@@ -31,7 +47,7 @@ automation/.venv/bin/python -m nifi_automation.cli.main up flow --output json ||
 # Finally, run flow-triggered external tests for flows present in the aggregate spec
 automation/.venv/bin/python - <<'PY'
 import sys, yaml, subprocess, os
-spec = yaml.safe_load(open('automation/flows/NiFi_Flow.yaml','r'))
+spec = yaml.safe_load(open('automation/flows/groups-md/NiFi_Flow_groups.yaml','r'))
 pgs = spec.get('process_group',{}).get('process_groups',[]) or []
 names = [g.get('name') for g in pgs if isinstance(g, dict)]
 base = 'automation/tests/flows'
@@ -48,3 +64,16 @@ PY
 
 # Ensure processors end RUNNING for operator convenience
 automation/.venv/bin/python -m nifi_automation.cli.main start processors --output json || true
+automation/.venv/bin/python -m nifi_automation.cli.main status flow --output json || true
+
+# Bulletin gate: fail if any ERROR bulletins were emitted after baseline
+if [ -n "${TOKEN:-}" ] && [ -n "${NIFI_BASE_URL:-}" ]; then
+  ERR_JSON=$(curl -sk -H "Authorization: Bearer $TOKEN" \
+    "${NIFI_BASE_URL}/flow/bulletin-board?limit=200&after=${BASELINE_ID}")
+  ERR_COUNT=$(printf '%s' "$ERR_JSON" | jq '[.bulletinBoard.bulletins[].bulletin | select(.level=="ERROR")] | length')
+  if [ "$ERR_COUNT" -gt 0 ]; then
+    echo "[integration] ERROR bulletins detected after start ($ERR_COUNT). Failing suite." >&2
+    printf '%s' "$ERR_JSON" | jq '.bulletinBoard.bulletins[].bulletin | select(.level=="ERROR") | {id, level, sourceName, message}' >&2
+    exit 1
+  fi
+fi

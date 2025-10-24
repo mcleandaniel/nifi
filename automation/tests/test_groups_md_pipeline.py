@@ -48,7 +48,7 @@ def test_build_ignores_readme_md(tmp_path: Path):
     (flows_dir / "FooFlow.yaml").write_text(
         yaml.safe_dump({
             "name": "FooFlow",
-            "processors": [],
+            "processors": [{"id": "p1", "name": "X", "type": "t"}],
             "connections": [],
         }, sort_keys=False),
         encoding="utf-8",
@@ -56,7 +56,7 @@ def test_build_ignores_readme_md(tmp_path: Path):
     (flows_dir / "BarFlow.yaml").write_text(
         yaml.safe_dump({
             "name": "BarFlow",
-            "processors": [],
+            "processors": [{"id": "p2", "name": "Y", "type": "t"}],
             "connections": [],
         }, sort_keys=False),
         encoding="utf-8",
@@ -80,6 +80,74 @@ def test_build_ignores_readme_md(tmp_path: Path):
     assert g["name"] == "Group One"
     names = [c.get("name") for c in g.get("process_groups", [])]
     assert names == ["FooFlow", "BarFlow"]
+
+
+def test_gating_excludes_not_live_and_not_ready(tmp_path: Path):
+    md_dir = tmp_path / "groups-md"
+    flows_dir = md_dir / "Monitoring" / "flows"
+    flows_dir.mkdir(parents=True)
+
+    # Group MD with two flows; one explicitly draft/live:false, one ready/live:true
+    (md_dir / "Group_Monitoring.md").write_text(
+        (
+            "# Monitoring\n\n"
+            "Flows focused on diagnostics.\n\n"
+            "## QueueDepths\n"
+            "```nifidesc\n"
+            "name: QueueDepthsHttpWorkflow\n"
+            "phase: draft\n"
+            "live: false\n"
+            "```\n\n"
+            "## Trivial\n"
+            "```nifidesc\n"
+            "name: TrivialFlow\n"
+            "phase: ready\n"
+            "live: true\n"
+            "```\n"
+        ),
+        encoding="utf-8",
+    )
+
+    # Draft/not-live fragment (should be excluded even if it has processors)
+    (flows_dir / "QueueDepthsHttpWorkflow.yaml").write_text(
+        yaml.safe_dump({
+            "name": "QueueDepthsHttpWorkflow",
+            "phase": "draft",
+            "live": False,
+            "processors": [{"id": "a", "name": "X", "type": "t"}],
+            "connections": [],
+        }, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    # Ready/live fragment (should be included)
+    (flows_dir / "TrivialFlow.yaml").write_text(
+        yaml.safe_dump({
+            "name": "TrivialFlow",
+            "phase": "ready",
+            "live": True,
+            "processors": [{"id": "g", "name": "Generate", "type": "t"}],
+            "connections": [],
+        }, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    out_yaml = tmp_path / "NiFi_Flow_groups.yaml"
+    builder = _scripts_dir() / "build_groups_yaml_from_md.py"
+    res = subprocess.run(
+        [sys.executable, str(builder), "--md-dir", str(md_dir), "--out", str(out_yaml), "--root-name", "NiFi Flow"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr or res.stdout
+    data = yaml.safe_load(out_yaml.read_text(encoding="utf-8"))
+    groups = data["process_group"].get("groups") or []
+    # Only TrivialFlow should remain
+    assert any(
+        g.get("name") == "Monitoring" and [c.get("name") for c in g.get("process_groups", [])] == ["TrivialFlow"]
+        for g in groups
+    )
 
 
 def test_seed_ignores_readme_md(tmp_path: Path):
@@ -192,9 +260,15 @@ def test_generate_stubs_from_md(tmp_path: Path):
     desc = spec.get("description", "")
     assert "Overview:" in desc and "Technical:" in desc
 
-    # Builder should consume the stub and produce grouped YAML
+    # Builder should consume the stub and produce grouped YAML once stub is promoted to ready and has processors
     out_yaml = tmp_path / "NiFi_Flow_groups.yaml"
     builder = _scripts_dir() / "build_groups_yaml_from_md.py"
+    # Promote stub: set phase ready and add a minimal processor to allow inclusion
+    frag_path = out_md_dir / "Group_B" / "flows" / "BetaFlow.yaml"
+    spec = yaml.safe_load(frag_path.read_text(encoding="utf-8"))
+    spec["phase"] = "ready"
+    spec["processors"] = [{"id": "g", "name": "Generate", "type": "t"}]
+    frag_path.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
     res2 = subprocess.run(
         [sys.executable, str(builder), "--md-dir", str(md_dir), "--out", str(out_yaml), "--root-name", "NiFi Flow"],
         capture_output=True,

@@ -14,14 +14,14 @@ def _start_server(theme="dark"):
     mod = SourceFileLoader("diagram_web", str(ROOT / "automation/scripts/diagram_web.py")).load_module()
     # Ensure base assets exist
     mod.ensure_icons(theme)
-    mod.render_diagrams(ROOT / "automation/flows/NiFi_Flow.yaml", theme)
+    mod.render_diagrams(ROOT / "automation/flows/groups-md/NiFi_Flow_groups.yaml", theme)
 
     # Bind to an ephemeral port
     from http.server import ThreadingHTTPServer
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), mod.Handler)
     httpd.theme = theme
-    httpd.spec = ROOT / "automation/flows/NiFi_Flow.yaml"
+    httpd.spec = ROOT / "automation/flows/groups-md/NiFi_Flow_groups.yaml"
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     port = httpd.server_address[1]

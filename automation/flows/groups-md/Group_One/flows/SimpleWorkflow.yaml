@@ -1,9 +1,74 @@
 name: SimpleWorkflow
-phase: draft
 description: 'Overview: Record-based pipeline that normalizes a field and branches
   on a SQL predicate.
 
   Technical: GenerateRecord (embedded Avro schema) emits fields ''status'' and ''value''.
-  UpdateRecord uppercases'
-processors: []
-connections: []
+  UpdateRecord uppercases
+
+  /status. QueryRecord evaluates two queries: ''success'' routes status=''OK'' and
+  ''failure'' routes all others. Logs
+
+  at both sinks. Requires JsonTreeReader and JsonRecordSetWriter controller services.
+
+  '
+processors:
+- id: generate
+  name: GenerateRecord
+  type: org.apache.nifi.processors.standard.GenerateRecord
+  scheduling_period: 1 min
+  properties:
+    record-writer: json-writer
+    number-of-records: '1'
+    nullable-fields: 'false'
+    null-percentage: '0.0'
+    schema-text: "{\n  \"type\": \"record\",\n  \"name\": \"test\",\n  \"fields\"\
+      : [\n    { \"name\": \"status\", \"type\": \"string\" },\n    { \"name\": \"\
+      value\", \"type\": \"int\" }\n  ]\n}\n"
+- id: update
+  name: UpdateRecord
+  type: org.apache.nifi.processors.standard.UpdateRecord
+  properties:
+    Record Reader: json-reader
+    Record Writer: json-writer
+    /status: UPPER(/status)
+- id: query
+  name: QueryRecord
+  type: org.apache.nifi.processors.standard.QueryRecord
+  properties:
+    record-reader: json-reader
+    record-writer: json-writer
+    success: SELECT * FROM FLOWFILE WHERE status = 'OK'
+    failure: SELECT * FROM FLOWFILE WHERE status <> 'OK'
+- id: log_success
+  name: LogAttribute (Success)
+  type: org.apache.nifi.processors.standard.LogAttribute
+- id: log_failure
+  name: LogAttribute (Failure)
+  type: org.apache.nifi.processors.standard.LogAttribute
+connections:
+- name: Generate to Update
+  source: generate
+  destination: update
+  relationships:
+  - success
+  back_pressure_object_threshold: 1000
+- name: Update to Query
+  source: update
+  destination: query
+  relationships:
+  - success
+- name: Query to Log Success
+  source: query
+  destination: log_success
+  relationships:
+  - success
+- name: Query to Log Failure
+  source: query
+  destination: log_failure
+  relationships:
+  - failure
+auto_terminate:
+  log_success:
+  - success
+  log_failure:
+  - success

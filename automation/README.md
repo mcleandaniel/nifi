@@ -57,7 +57,10 @@ Then continue with the steps below.
   ```bash
   nifi-automation auth-token
   nifi-automation flow-summary
-  python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
+  # Deploy the grouped aggregate (canonical):
+  python -m nifi_automation.cli.main run flow automation/flows/groups-md/NiFi_Flow_groups.yaml --output json
+  # Confirm final state:
+  python -m nifi_automation.cli.main status flow --output json
   nifi-automation controller-services-report --format markdown
  nifi-automation controller-services-report -f json --log-level DEBUG  # includes required properties exactly as NiFi marks them
   ```
@@ -72,9 +75,11 @@ Then continue with the steps below.
   ```bash
   bash automation/scripts/run_integration_suite.sh
   ```
-  This script purges NiFi once (via the CLI), deploys `automation/flows/NiFi_Flow.yaml`, verifies the resulting process groups and controller
-  services, and fails immediately if NiFi reports any invalid processors. It ends by starting processors so the final
-  deployed state is RUNNING for operator inspection.
+  This script purges NiFi once (via the CLI), deploys `automation/flows/groups-md/NiFi_Flow_groups.yaml` (the grouped aggregate),
+  verifies the resulting process groups and controller services, and fails immediately if NiFi reports any invalid
+  processors. It ends by starting processors so the final deployed state is RUNNING for operator inspection and then
+  prints a consolidated `status flow` summary.
+  The suite does not purge after tests to allow manual inspection of the deployed state.
    > Codex sandbox note: if you execute this from a sandboxed session, enable network access first  
    > (`codex --sandbox workspace-write -c sandbox_workspace_write.network_access=true`). Otherwise the initial
    > `/access/token` call fails with `[Errno 1] Operation not permitted`, and the purge step never starts.
@@ -164,14 +169,18 @@ nifi-automation auth-token \
 
 - After any change, validate in two phases. You can run them explicitly:
   - Deploy phase (no processors started yet):
-    - `nifi-automation deploy flow automation/flows/NiFi_Flow.yaml --output json`
+    - `nifi-automation deploy flow automation/flows/groups-md/NiFi_Flow_groups.yaml --output json`
       - Fails if topology mismatches or layout overlaps exist.
   - Start phase:
     - `nifi-automation up flow --output json`
       - Requires all processors to be RUNNING; reports connection backpressure.
 - Or run them together with a single helper:
-  - `nifi-automation run flow automation/flows/NiFi_Flow.yaml --output json`
-  - This literally performs the deploy phase validations (topology + layout) and then starts processors and enforces that the final status is UP.
+  - `nifi-automation run flow automation/flows/groups-md/NiFi_Flow_groups.yaml --output json`
+  - This performs deploy validations (topology + layout), starts processors, and enforces that the final status is UP. Follow with `status flow` if you want a summary print.
+
+Important test rule
+- Tests must not tolerate partial success. If a processor remains STOPPED, or an endpoint is not reachable/returns unexpected codes, the test must fail. Fix the flow or treat as error; do not skip.
+- Tests must deploy at least one processor (zero processors is invalid). Ensure flow specs include processors; assertions should confirm non‑zero counts.
 
 ## Clean Deploy Workflow (root-run)
 
@@ -184,7 +193,7 @@ When bootstrapping a NiFi instance (e.g., before deploying `flows/simple.yaml`),
    ```
 2. **Deploy** – run from repo root using the same venv:
    ```bash
-   python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml --output json
+   python -m nifi_automation.cli.main run flow automation/flows/groups-md/NiFi_Flow_groups.yaml --output json
    ```
    The CLI ensures controller services exist (fail-fast if anything already exists), redeploys the flow,
    enables controllers, and starts processors. Use `--dry-run` if you only want the deployment plan.
@@ -210,15 +219,19 @@ set -a; source .env; set +a
 python automation/scripts/fetch_bulletins.py --limit 200 --severity ERROR --output json
 ```
 
+CLI wrapper example:
+```bash
+python -m nifi_automation.cli.main inspect bulletins --limit 100 --severity ERROR --output json
+```
+
 For LLM-assisted analysis, paste the JSON output into `prompts/analyze-bulletins.md` under BULLETINS_JSON and ask for root causes and next steps.
 
 ## Flow Specifications
-- Declarative specs live under `flows/`. Examples:
-  - `automation/flows/NiFi_Flow.yaml`: deploys `TrivialFlow`, `SimpleWorkflow`, `MediumWorkflow`, `ComplexWorkflow`, and
-    `NestedWorkflow` (which itself contains a `SubFunction` process group) beneath the `NiFi Flow` root.
-- `automation/flows/trivial.yaml`, `automation/flows/simple.yaml`, `automation/flows/medium.yaml`, `automation/flows/complex.yaml`, `automation/flows/nested.yaml`, `automation/flows/nested_ports.yaml`:
-    single-flow specs that target the same root and create only the named child group.
-- `python -m nifi_automation.cli.main run flow automation/flows/NiFi_Flow.yaml` recreates the entire hierarchy (purging first) each time.
+- Grouped aggregate (canonical): `automation/flows/groups-md/NiFi_Flow_groups.yaml`. This is the primary deploy target used by the integration suite and CLI examples.
+- Single-flow specs remain available for isolated runs: `automation/flows/trivial.yaml`, `automation/flows/simple.yaml`, `automation/flows/medium.yaml`, `automation/flows/complex.yaml`, `automation/flows/nested.yaml`, `automation/flows/nested_ports.yaml`.
+- Deploy aggregate:
+  - `python -m nifi_automation.cli.main run flow automation/flows/groups-md/NiFi_Flow_groups.yaml`
+  - Or deploy single flows individually when iterating on one workflow at a time.
 
 Descriptions & doc sync
 - Each process group in YAML may include a `description` field (alias `comments`). The deployer copies this to the NiFi PG comments.
@@ -245,18 +258,17 @@ Doc as source-of-truth (nifidesc) and sync tool
 - The integration tests enforce that YAML descriptions match the doc blocks.
 
 Groups MD build (aggregate from groups-md)
-- We are migrating to a groups-first build where group metadata and per-workflow YAML
-  fragments live under `automation/flows/groups-md/`. The builder assembles
-  `automation/flows/NiFi_Flow_groups.yaml` without reading `automation/flows/*.yaml`.
-- See `automation/flows/README.md` for details and commands (experimental, not for deploy yet).
+- We use a groups-first build where group metadata and per-workflow YAML fragments live under `automation/flows/groups-md/`.
+  The builder assembles `automation/flows/groups-md/NiFi_Flow_groups.yaml` without reading `automation/flows/*.yaml`.
+- See `automation/flows/README.md` for details and commands (groups build is the canonical aggregate used by the integration suite).
   - Build grouped YAML:
     - `python automation/scripts/build_groups_yaml_from_md.py --md-dir automation/flows/groups-md --out automation/flows/groups-md/NiFi_Flow_groups.yaml --root-name "NiFi Flow"`
   - One-time seed of per-workflow fragments (during migration):
     - `python automation/scripts/seed_groups_yaml_from_single_flows.py --md-dir automation/flows/groups-md --flows-dir automation/flows --out-md-dir automation/flows/groups-md`
 
 Aggregate promotion rule (must-do)
-- After a new flow spec (e.g., `automation/flows/my_flow.yaml`) deploys cleanly on its own and passes layout/validation checks, you must add it to the aggregate `automation/flows/NiFi_Flow.yaml` in the same PR.
-- Do not leave standalone specs orphaned. The aggregate is the canonical end-to-end deploy used by the integration suite and operators.
+- After a new flow spec deploys cleanly on its own and passes layout/validation checks, you must add it to the groups build by creating/updating its fragment under `automation/flows/groups-md/<Group>/flows/<Name>.yaml` and rebuilding `automation/flows/groups-md/NiFi_Flow_groups.yaml` in the same PR.
+- Do not leave standalone specs orphaned. The grouped aggregate is the canonical end-to-end deploy used by the integration suite and operators.
 - Checklist before promotion:
   - Dry-run and live deploy of the single spec succeed.
   - `run_integration_suite.sh` passes with the existing aggregate.
@@ -279,7 +291,7 @@ External flow tests
   ```
 - Starter PGs: `EchoLogger` and `AttributeTagger`. Example harness at `automation/flows/library/http_library_harness.yaml`.
 - Next step (roadmap): teach the deployer to process `library_includes` natively so composition doesn’t require a pre-step.
-- The integration runner only executes flow tests for PGs present in `NiFi_Flow.yaml`. Do not add a new PG to the
+- The integration runner only executes flow tests for PGs present in `automation/flows/groups-md/NiFi_Flow_groups.yaml`. Do not add a new PG to the
   aggregate until its standalone spec and tests are green.
 - Prefer parameterizing triggers (ports, paths) via Parameter Context values and referencing them in tests via `.env`.
 
@@ -307,7 +319,7 @@ Multiple specs can be supplied (comma-separated or space-separated); the script 
 - Serve generated diagrams and icon assets via a tiny web UI.
 - Start the server:
   - `source automation/.venv/bin/activate`
-  - `python automation/scripts/diagram_web.py --spec automation/flows/NiFi_Flow.yaml --theme dark --port 8091`
+  - `python automation/scripts/diagram_web.py --spec automation/flows/groups-md/NiFi_Flow_groups.yaml --theme dark --port 8091`
 - Open `http://127.0.0.1:8091/` for the index of groups.
 - Regenerate using another theme: `curl 'http://127.0.0.1:8091/api/render?theme=light'` and refresh the page.
 - Browse icons preview: `http://127.0.0.1:8091/assets/processor-icons/preview/index.html`.
@@ -338,7 +350,7 @@ Multiple specs can be supplied (comma-separated or space-separated); the script 
     See `docs/ssl-trust-helper.md` for details.
 
 - Trust tools (CLI)
-  - The CLI provides `trust` subcommands that deploy ephemeral HTTP-triggered flows to add/remove/inspect dedicated truststores and auto-provision a root SSL Context Service ("Workflow SSL").
+  - The CLI provides `trust` subcommands that deploy HTTP-triggered flows to add/remove/inspect dedicated truststores and auto-provision a root SSL Context Service ("Workflow SSL").
   - Quick start:
     ```bash
     nifi-automation add trust --ts-name workflow --ts-type PKCS12 --ts-password abcd1234 \
@@ -347,6 +359,6 @@ Multiple specs can be supplied (comma-separated or space-separated); the script 
     ```
   - See `docs/trust-store-ops.md` for design and operational details.
 - Port ranges (dev convention)
-- Tools (ephemeral, CLI-triggered): 18070–18079 (default 18071)
+- Tools (CLI-triggered): 18070–18079 (default 18071)
 - Workflows (HTTP-triggered tests): 18080–18180 (default 18081 for examples)
-- Rationale: avoids collisions between tools and workflow listeners. Trust tools deploy on-demand and remove their PGs after completion.
+- Rationale: avoids collisions between tools and workflow listeners. Trust tools deploy on-demand and remain deployed for inspection; they are not auto-deleted. Use the purge/cleardown command when starting a new batch, not after tests.

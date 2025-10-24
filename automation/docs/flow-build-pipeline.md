@@ -8,7 +8,8 @@ the builder pipeline.
 Status: experimental (under development)
 - For end‑to‑end tests and day‑to‑day deployment, keep using `automation/flows/NiFi_Flow.yaml`
   and `automation/flows/*.yaml` until the deployer is group‑aware.
-- The grouped output is a build artifact for future work and should not be deployed yet.
+> Grouped builds are experimental. Do not use a grouped aggregate as the default regression
+> target until all grouped flows are verified and the deployer is fully group‑aware.
 
 ## Source of Truth
 

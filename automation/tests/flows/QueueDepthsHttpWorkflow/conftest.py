@@ -15,7 +15,7 @@ from nifi_automation.infra import purge_adapter
 from nifi_automation.controller_registry import ensure_root_controller_services
 from nifi_automation.app.trust_service import add as trust_add
 from nifi_automation.app.models import AppConfig
-from nifi_automation.flow_builder import deploy_flow_from_file, start_processors
+from nifi_automation.flow_builder import deploy_flow_from_file, start_processors, FlowDeploymentError
 
 
 SPEC = Path("automation/flows/queue_depths_http.yaml")
@@ -101,9 +101,9 @@ def deploy_queue_depths(nifi_session: NiFiClient):
     except Exception:
         pass
 
-    # Deploy the QueueDepths flow and start processors
+    # Deploy the QueueDepths flow and start processors (strict: must reach RUNNING)
     deploy_flow_from_file(nifi_session, SPEC, controller_service_map=service_map)
-    start_processors(nifi_session)
+    start_processors(nifi_session, timeout=60.0)
 
     # Readiness: wait for HTTP listener
     host = os.getenv("NIFI_HTTP_TEST_HOST", "127.0.0.1")

@@ -1,14 +1,91 @@
 name: QueueDepthsHttpWorkflow
 phase: draft
-description: "Overview: Exposes an HTTP endpoint that returns a simple HTML table\
-  \ of connection queue depths on the current NiFi instance.\nTechnical: HandleHttpRequest\
-  \ (path=/queues) \u2192 InvokeHTTP (POST ${BASE}/access/token with single-user creds)\
-  \ \u2192 UpdateAttribute (sets `Authorization: Bearer ${token}`) \u2192 InvokeHTTP\
-  \ (GET ${BASE}/flow/process-groups/root/status?recursive=true) \u2192 JoltTransformJSON\
-  \ (flatten connections to name, queuedCount, queuedBytes) \u2192 ReplaceText (wrap\
-  \ rows in an HTML table) \u2192 HandleHttpResponse (Content-Type: text/html). For\
-  \ HTTPS in Docker, target the internal URL (e.g., https://$(hostname):8443/nifi-api)\
-  \ and ensure TLS trust; in early iterations prefer Basic token fetch + Bearer header\
-  \ to keep auth simple."
-processors: []
-connections: []
+live: false
+description: "Overview: Exposes an HTTP endpoint on port 18081 that returns a simple\
+  \ HTML table summarizing queued FlowFiles/bytes for the root process group.\nTechnical:\
+  \ HandleHttpRequest (path=/queues) \u2192 InvokeHTTP (GET https://localhost:8443/nifi-api/flow/process-groups/root/status?recursive=true,\
+  \ Basic auth) \u2192 EvaluateJsonPath extracts queued stats \u2192 ReplaceText formats\
+  \ as HTML \u2192 HandleHttpResponse (text/html). Requires a root SSL Context Service\
+  \ (Workflow SSL) if HTTPS trust is enforced; otherwise set Hostname Verifier appropriately\
+  \ for internal self-calls.\n"
+processors:
+- id: http-request
+  name: HandleHttpRequest
+  type: org.apache.nifi.processors.standard.HandleHttpRequest
+  properties:
+    Listening Port: '18081'
+    Allowed Paths: /queues
+    HTTP Context Map: http-context-map
+- id: get-status
+  name: InvokeHTTP (root status)
+  type: org.apache.nifi.processors.standard.InvokeHTTP
+  properties:
+    HTTP Method: GET
+    HTTP URL: https://localhost:8443/nifi-api/flow/process-groups/root/status?recursive=true
+    Request Username: admin
+    Request Password: changeMe123!
+    SSL Context Service: ssl-context
+    Hostname Verifier: Strict
+- id: parse
+  name: EvaluateJsonPath (queued)
+  type: org.apache.nifi.processors.standard.EvaluateJsonPath
+  properties:
+    Destination: flowfile-attribute
+    queued: $.processGroupStatus.aggregateSnapshot.queued
+- id: to-html
+  name: ReplaceText (HTML table)
+  type: org.apache.nifi.processors.standard.ReplaceText
+  properties:
+    Replacement Strategy: Always Replace
+    Evaluation Mode: Entire text
+    Text to Prepend: <!-- -->
+    Text to Append: <!-- -->
+    Replacement Value: "<html><head><title>NiFi Queue Depths</title></head><body>\n\
+      <h3>Root Queue Summary</h3>\n<table border=\"1\" cellspacing=\"0\" cellpadding=\"\
+      4\">\n  <tr><th>Queued</th></tr>\n  <tr><td>${queued}</td></tr>\n</table>\n\
+      </body></html>\n"
+- id: http-response
+  name: HandleHttpResponse
+  type: org.apache.nifi.processors.standard.HandleHttpResponse
+  properties:
+    HTTP Status Code: '200'
+    Content-Type: text/html
+    HTTP Context Map: http-context-map
+connections:
+- name: "request\u2192status"
+  source: http-request
+  destination: get-status
+  relationships:
+  - success
+- name: "status\u2192parse"
+  source: get-status
+  destination: parse
+  relationships:
+  - Response
+- name: "parse\u2192html"
+  source: parse
+  destination: to-html
+  relationships:
+  - matched
+- name: "parse-unmatched\u2192html"
+  source: parse
+  destination: to-html
+  relationships:
+  - unmatched
+- name: "html\u2192response"
+  source: to-html
+  destination: http-response
+  relationships:
+  - success
+- name: "status-fail\u2192response"
+  source: get-status
+  destination: http-response
+  relationships:
+  - Failure
+  - Retry
+  - No Retry
+- name: "status-original\u2192response"
+  source: get-status
+  destination: http-response
+  relationships:
+  - Original

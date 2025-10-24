@@ -17,7 +17,7 @@ import httpx
 
 TOOLS_DIR = Path("automation/tools/flows/ops")
 DEFAULT_TIMEOUT = 20.0
-TOOLS_PORT = 18081
+TOOLS_PORT = 18071
 
 
 def _split_url(url: str) -> Tuple[str, int]:
@@ -107,6 +107,23 @@ def _wait_pg_ready(client, pg_name: str, *, timeout: float = 30.0, poll: float =
             raise TimeoutError(f"Tools PG '{pg_name}' did not become ready", details={"invalid": invalid, "not_ready": not_ready})
         time.sleep(poll)
 
+def _wait_processor_running(client, pg_name: str, proc_name: str, *, timeout: float = 15.0, poll: float = 0.25) -> None:
+    pg_id = _find_pg_by_name(client, pg_name)
+    if not pg_id:
+        raise BadInputError(f"Process group '{pg_name}' not found")
+    deadline = time.time() + timeout
+    while True:
+        pid = _find_processor_by_name(client, pg_id, proc_name)
+        if not pid:
+            raise BadInputError(f"Processor '{proc_name}' not found in '{pg_name}'")
+        ent = client._client.get(f"/processors/{pid}").json()
+        st = ent.get("component", {}).get("state")
+        if st == "RUNNING":
+            return
+        if time.time() > deadline:
+            raise TimeoutError(f"Processor '{proc_name}' in '{pg_name}' did not enter RUNNING (state={st})")
+        time.sleep(poll)
+
 
 def _run_once(client, processor_id: str, *, timeout: float = DEFAULT_TIMEOUT) -> None:
     # PUT run-status RUN_ONCE
@@ -122,6 +139,33 @@ def _run_once(client, processor_id: str, *, timeout: float = DEFAULT_TIMEOUT) ->
         if st in {"RUNNING", "STOPPED", "DISABLED"}:
             return
         time.sleep(0.2)
+
+
+def _stop_processor(client, processor_id: str) -> None:
+    try:
+        entity = client._client.get(f"/processors/{processor_id}").json()
+        rev = entity.get("revision", {})
+        body = {"revision": rev, "state": "STOPPED"}
+        client._client.put(f"/processors/{processor_id}/run-status", json=body).raise_for_status()
+        # Wait until processor enters STOPPED or DISABLED
+        deadline = time.time() + 10.0
+        while time.time() < deadline:
+            ent = client._client.get(f"/processors/{processor_id}").json()
+            st = ent.get("component", {}).get("state")
+            if st in {"STOPPED", "DISABLED"}:
+                break
+            time.sleep(0.2)
+    except Exception:
+        pass
+
+
+def _stop_processor_by_name(client, pg_name: str, proc_name: str) -> None:
+    pg_id = _find_pg_by_name(client, pg_name)
+    if not pg_id:
+        return
+    pid = _find_processor_by_name(client, pg_id, proc_name)
+    if pid:
+        _stop_processor(client, pid)
 
 
 def _deploy_and_trigger(config: AppConfig, spec_path: Path, params: Dict[str, str], *, pg_name: str) -> CommandResult:
@@ -168,11 +212,12 @@ def create(*, config: AppConfig) -> CommandResult:
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Create_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Create_HTTP")
+        _wait_processor_running(client, "Tools_Trust_Create_HTTP", "HandleHttpRequest")
     params = {"name": config.ts_name, "type": (config.ts_type or "JKS"), "pass": config.ts_pass}
     r = _tools_get("/tools/trust/create", params=params, timeout=10.0, key=shared_key)
     r.raise_for_status()
     # Cleanup ephemeral tools PG
-    _delete_tools_pg(config, pg_name="Tools_Trust_Create_HTTP")
+    # Do not auto-delete tools PGs; leave deployed for inspection.
     return CommandResult(message=r.text.strip() or "trust create ok", data={"pg": "Tools_Trust_Create_HTTP"})
 
 
@@ -182,6 +227,9 @@ def add(*, config: AppConfig) -> CommandResult:
     spec = TOOLS_DIR / "trust_add_http.yaml"
     shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
+        # Free listening port from any prior tools PGs without deleting deployment
+        _stop_processor_by_name(client, "Tools_Trust_Inspect_HTTP", "HandleHttpRequest")
+        _stop_processor_by_name(client, "Tools_Trust_Remove_HTTP", "HandleHttpRequest")
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
         pg_id = _find_pg_by_name(client, "Tools_Trust_Add_HTTP")
         if pg_id:
@@ -191,6 +239,7 @@ def add(*, config: AppConfig) -> CommandResult:
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Add_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Add_HTTP")
+        _wait_processor_running(client, "Tools_Trust_Add_HTTP", "HandleHttpRequest")
     params = {
         "name": config.ts_name,
         "type": (config.ts_type or "JKS"),
@@ -216,7 +265,9 @@ def add(*, config: AppConfig) -> CommandResult:
     ext = "jks" if ts_type == "JKS" else ("p12" if ts_type in {"PKCS12", "P12"} else ("bcfks" if ts_type == "BCFKS" else "jks"))
     ts_file = f"/opt/nifi/nifi-current/conf/truststores/{ts_name}.{ext}"
     _ensure_workflow_ssl_context(config, truststore_file=ts_file, truststore_type=ts_type, truststore_pass=ts_pass)
-    _delete_tools_pg(config, pg_name="Tools_Trust_Add_HTTP")
+    # Leave deployment; stop listener to free port for subsequent tools
+    with open_client(config) as client:
+        _stop_processor_by_name(client, "Tools_Trust_Add_HTTP", "HandleHttpRequest")
     return CommandResult(message="trust add ok", data={}, details=details)
 
 
@@ -226,6 +277,8 @@ def remove(*, config: AppConfig) -> CommandResult:
     spec = TOOLS_DIR / "trust_remove_http.yaml"
     shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
+        _stop_processor_by_name(client, "Tools_Trust_Add_HTTP", "HandleHttpRequest")
+        _stop_processor_by_name(client, "Tools_Trust_Inspect_HTTP", "HandleHttpRequest")
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
         pg_id = _find_pg_by_name(client, "Tools_Trust_Remove_HTTP")
         if pg_id:
@@ -235,17 +288,13 @@ def remove(*, config: AppConfig) -> CommandResult:
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Remove_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Remove_HTTP")
+        _wait_processor_running(client, "Tools_Trust_Remove_HTTP", "HandleHttpRequest")
     params = {"name": config.ts_name, "type": (config.ts_type or "JKS"), "pass": config.ts_pass, "alias": config.ts_alias}
     r = _tools_get("/tools/trust/remove", params=params, timeout=10.0, key=shared_key)
     status = r.status_code
     details = {"status": status, "body": r.text}
     if status >= 400:
-        try:
-            _delete_tools_pg(config, pg_name="Tools_Trust_Remove_HTTP")
-        except Exception:
-            pass
         return CommandResult(exit_code=ExitCode.HTTP_ERROR, message="trust remove failed", details=details)
-    _delete_tools_pg(config, pg_name="Tools_Trust_Remove_HTTP")
     return CommandResult(message="trust remove ok", data={}, details=details)
 
 
@@ -256,6 +305,8 @@ def inspect(*, config: AppConfig) -> CommandResult:
     spec = TOOLS_DIR / "trust_inspect_http.yaml"
     shared_key = secrets.token_urlsafe(24)
     with open_client(config) as client:
+        _stop_processor_by_name(client, "Tools_Trust_Add_HTTP", "HandleHttpRequest")
+        _stop_processor_by_name(client, "Tools_Trust_Remove_HTTP", "HandleHttpRequest")
         deploy_adapter.deploy_flow(client, spec, dry_run=False)
         pg_id = _find_pg_by_name(client, "Tools_Trust_Inspect_HTTP")
         if pg_id:
@@ -265,13 +316,29 @@ def inspect(*, config: AppConfig) -> CommandResult:
         _start_root(client)
         _assert_pg_valid(client, "Tools_Trust_Inspect_HTTP")
         _wait_pg_ready(client, "Tools_Trust_Inspect_HTTP")
+        _wait_processor_running(client, "Tools_Trust_Inspect_HTTP", "HandleHttpRequest")
     # For now, assume localhost:18081 is reachable from the CLI host
     params = {
         "name": config.ts_name,
         "type": (config.ts_type or "JKS"),
         "pass": config.ts_pass,
     }
-    r = _tools_get("/tools/trust/inspect", params=params, timeout=15.0, key=shared_key)
+    # Probe with a short readiness window to avoid racing the HTTP listener bind
+    deadline = time.time() + 12.0
+    last_resp: Optional[httpx.Response] = None
+    while True:
+        try:
+            r = _tools_get("/tools/trust/inspect", params=params, timeout=5.0, key=shared_key)
+            last_resp = r
+            if r.status_code < 400:
+                break
+        except Exception:
+            pass
+        if time.time() > deadline:
+            # fall through with last_resp (may be None)
+            break
+        time.sleep(0.5)
+    r = last_resp or httpx.Response(599, text="inspect endpoint unreachable")
     # Do not raise; return body on error to aid debugging
     # Parse: expect plain text with a listing block followed by '---' then keytool output
     text = r.text or ""
@@ -286,10 +353,6 @@ def inspect(*, config: AppConfig) -> CommandResult:
         for ln in lines[1:]:
             if ln:
                 stores.append(ln)
-    try:
-        _delete_tools_pg(config, pg_name="Tools_Trust_Inspect_HTTP")
-    except Exception:
-        pass
     return CommandResult(
         message="trust inspect ok" if r.status_code < 400 else "trust inspect error",
         data={"stores": stores, "keytool": keytool},

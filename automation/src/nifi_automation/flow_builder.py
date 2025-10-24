@@ -68,6 +68,11 @@ class ProcessGroupSpec:
 @dataclass
 class FlowSpec:
     root_group: ProcessGroupSpec
+    # Optional: mapping of top-level child PG name -> column index (for group-aware layout)
+    root_child_columns: Optional[Dict[str, int]] = None
+    # Optional: mapping of top-level child PG name -> group name (None for default)
+    root_child_membership: Optional[Dict[str, Optional[str]]] = None
+    root_group_descriptions: Optional[Dict[str, str]] = None
 
 
 @dataclass
@@ -305,6 +310,7 @@ def _parse_process_group(
     data: Mapping[str, Any],
     *,
     index: int = 0,
+    child_columns: Optional[Dict[str, int]] = None,
 ) -> ProcessGroupSpec:
     name = data.get("name")
     if not name:
@@ -397,7 +403,8 @@ def _parse_process_group(
             raise FlowDeploymentError("process_groups entries must be mappings")
         child_groups.append(_parse_process_group(child, index=child_idx))
 
-    _layout_child_groups(child_groups)
+    # Only the root call receives child_columns for group-aware layout
+    _layout_child_groups(child_groups, child_columns=child_columns)
 
     for child in child_groups:
         for port in child.input_ports:
@@ -462,6 +469,9 @@ def load_flow_spec(path: Path) -> FlowSpec:
     root_map: Dict[str, Any] = dict(pg_info)
     combined_children: List[Mapping[str, Any]] = []
     seen_names: Set[str] = set()
+    child_columns: Dict[str, int] = {}
+    child_membership: Dict[str, Optional[str]] = {}
+    current_column = 0  # 0 = legacy (default group)
     # Legacy children first
     for child in list(root_map.get("process_groups") or []):
         if not isinstance(child, Mapping):
@@ -473,10 +483,16 @@ def load_flow_spec(path: Path) -> FlowSpec:
             raise FlowDeploymentError(f"Duplicate top-level process group '{nm}' across groups or legacy list")
         seen_names.add(nm)
         combined_children.append(child)
+        child_columns[nm] = current_column
+        child_membership[nm] = None
     # Then grouped children
-    for grp in list(root_map.get("groups") or []):
+    group_descriptions: Dict[str, str] = {}
+    for grp_idx, grp in enumerate(list(root_map.get("groups") or []), start=1):
         if not isinstance(grp, Mapping):
             raise FlowDeploymentError("groups entries must be mappings")
+        gname = grp.get("name") if isinstance(grp.get("name"), str) else f"group-{grp_idx}"
+        gdesc = grp.get("description") if isinstance(grp.get("description"), str) else ""
+        group_descriptions[str(gname)] = gdesc
         for child in list(grp.get("process_groups") or []):
             if not isinstance(child, Mapping):
                 raise FlowDeploymentError("process_groups entries must be mappings")
@@ -487,31 +503,82 @@ def load_flow_spec(path: Path) -> FlowSpec:
                 raise FlowDeploymentError(f"Duplicate top-level process group '{nm}' across groups or legacy list")
             seen_names.add(nm)
             combined_children.append(child)
+            child_columns[nm] = grp_idx
+            # Record membership by group display name
+            child_membership[nm] = gname
     root_map["process_groups"] = combined_children
     root_map.pop("groups", None)
 
-    root_group = _parse_process_group(root_map)
+    root_group = _parse_process_group(root_map, child_columns=child_columns)
     if root_group.name != "NiFi Flow":
         raise FlowDeploymentError("Root process group must be named 'NiFi Flow'")
-    return FlowSpec(root_group=root_group)
+    return FlowSpec(
+        root_group=root_group,
+        root_child_columns=child_columns or None,
+        root_child_membership=child_membership or None,
+        root_group_descriptions=group_descriptions or None,
+    )
 
 
-def _layout_child_groups(groups: List[ProcessGroupSpec]) -> None:
+def _layout_child_groups(groups: List[ProcessGroupSpec], child_columns: Optional[Dict[str, int]] = None) -> None:
     if not groups:
         return
-    count = len(groups)
-    columns = max(1, math.ceil(math.sqrt(count)))
     spacing_x = 700.0
     spacing_y = 450.0
-    # Reserve a left gutter so top-level processors in the same parent group
-    # have space without overlapping the first child group.
     left_gutter = spacing_x
-    for idx, group in enumerate(groups):
-        if group.explicit_position:
-            continue
-        row = idx // columns
-        col = idx % columns
-        group.position = (left_gutter + col * spacing_x, row * spacing_y)
+
+    if not child_columns:
+        # Legacy grid (square-ish)
+        count = len(groups)
+        columns = max(1, math.ceil(math.sqrt(count)))
+        for idx, group in enumerate(groups):
+            if group.explicit_position:
+                continue
+            row = idx // columns
+            col = idx % columns
+            group.position = (left_gutter + col * spacing_x, row * spacing_y)
+        return
+
+    # Group-aware column layout
+    # Dynamic stride per column using actual lane count.
+    # Desired rule: gap between last PG of a column and first PG of next column
+    # equals 2x the intra-group horizontal separation. Since the last->first
+    # distance equals spacing_x (width of a lane) + group_gap, we set
+    # group_gap = spacing_x to achieve spacing_x + spacing_x = 2*spacing_x.
+    max_lanes = 3
+    group_gap = spacing_x  # results in last->first = 2 * spacing_x
+
+    # Partition groups by column index (default/legacy = 0, then 1..N for defined groups)
+    col_to_items: Dict[int, List[ProcessGroupSpec]] = {}
+    for g in groups:
+        col_idx = child_columns.get(g.name, 0)
+        col_to_items.setdefault(col_idx, []).append(g)
+
+    # Accumulate base_x per column to avoid over-wide strides
+    current_x = left_gutter
+    for col_idx in sorted(col_to_items.keys()):
+        items = col_to_items[col_idx]
+        # Choose lanes per column: 2 lanes up to 10 items, else 3; single item => 1 lane
+        n = len(items)
+        if n <= 1:
+            lanes = 1
+        elif n <= 10:
+            lanes = 2
+        else:
+            lanes = 3
+        lanes = min(lanes, max_lanes)
+
+        base_x = current_x
+        for i, group in enumerate(items):
+            if group.explicit_position:
+                continue
+            row = i // lanes
+            lane = i % lanes
+            x = base_x + lane * spacing_x
+            y = row * spacing_y
+            group.position = (x, y)
+        # Advance to next column: width of this column (lanes * spacing_x) + group gap
+        current_x += lanes * spacing_x + group_gap
 
 
 def _layout_group_components(group: ProcessGroupSpec) -> None:
@@ -762,6 +829,11 @@ class FlowDeployer:
         root_group = self.spec.root_group
 
         self._deploy_group_contents(root_pg_id, root_group)
+        # Create group labels on the root canvas to wrap columns (best-effort)
+        try:
+            self._create_group_labels(root_pg_id, root_group)
+        except Exception:
+            pass
 
         return root_pg_id
 
@@ -966,6 +1038,108 @@ class FlowDeployer:
             )
 
         return processor_id_map, input_port_id_map, output_port_id_map
+
+    def _create_group_labels(self, parent_pg_id: str, root_group: ProcessGroupSpec) -> None:
+        # Compute bounding boxes per group name from child positions, then create NiFi labels
+        membership = self.spec.root_child_membership or {}
+        descriptions = self.spec.root_group_descriptions or {}
+        columns = self.spec.root_child_columns or {}
+
+        spacing_x = 700.0
+        spacing_y = 450.0
+        # Padding rules:
+        # - Right edge: +0.25 * spacing_x beyond rightmost column
+        # - Bottom edge: +0.25 * spacing_y below bottom row of tallest group
+        # - Top padding: keep 0.25 * spacing_y for group name/description
+        top_pad = spacing_y * 0.25
+        right_extra = spacing_x * 0.25
+        bottom_extra = spacing_y * 0.25
+
+        groups: Dict[str, List[ProcessGroupSpec]] = {}
+        for child in root_group.child_groups:
+            gname = membership.get(child.name)
+            key = gname if isinstance(gname, str) and gname else "Default"
+            groups.setdefault(key, []).append(child)
+
+        def group_order(item: Tuple[str, List[ProcessGroupSpec]]) -> int:
+            name, items = item
+            if name == "Default":
+                return -1
+            cols = [columns.get(it.name, 9999) for it in items]
+            return min(cols) if cols else 9999
+
+        ordered = sorted(groups.items(), key=group_order)
+        colors = ["#FFF8E1", "#E3F2FD", "#E8F5E9", "#F3E5F5", "#FBE9E7", "#EDE7F6", "#E0F2F1"]
+        color_idx = 0
+
+        # First pass: compute global top and tallest row count
+        group_bounds: List[Tuple[str, float, float, int, int]] = []  # (name, min_x, min_y, lanes, rows)
+        global_min_y = None
+        rows_max = 0
+        for gname, items in ordered:
+            if not items:
+                continue
+            xs = [it.position[0] for it in items if it.position]
+            ys = [it.position[1] for it in items if it.position]
+            if not xs or not ys:
+                continue
+            min_x, min_y = min(xs), min(ys)
+            def lane_index(xv: float) -> int:
+                return int(round((xv - min_x) / spacing_x))
+            def row_index(yv: float) -> int:
+                return int(round((yv - min_y) / spacing_y))
+            lane_idxs = sorted({lane_index(xv) for xv in xs})
+            row_idxs = sorted({row_index(yv) for yv in ys})
+            lanes = (max(lane_idxs) + 1) if lane_idxs else 1
+            rows = (max(row_idxs) + 1) if row_idxs else 1
+            group_bounds.append((gname, min_x, min_y, lanes, rows))
+            if global_min_y is None or min_y < global_min_y:
+                global_min_y = min_y
+            if rows > rows_max:
+                rows_max = rows
+        if global_min_y is None:
+            return
+
+        # Second pass: create labels with uniform bottom alignment
+        # Pre-fetch existing labels to avoid duplicates (match on text)
+        existing = {}
+        try:
+            flow = self.client._client.get(f"/flow/process-groups/{parent_pg_id}").json().get("processGroupFlow", {}).get("flow", {})
+            for lab in flow.get("labels") or []:
+                comp = lab.get("component", {})
+                existing[comp.get("label")] = comp.get("id")
+        except Exception:
+            pass
+
+        for gname, min_x, min_y, lanes, rows in group_bounds:
+            # Top aligned to global top with top_pad for name/desc; left with 25% padding
+            x = min_x - (spacing_x * 0.25)
+            y = global_min_y - top_pad
+            width = lanes * spacing_x + right_extra  # right edge: PG width + 0.25*spacing_x
+            height = rows_max * spacing_y + top_pad + bottom_extra  # uniform bottom across labels
+
+            desc = descriptions.get(gname, "") if gname != "Default" else ""
+            text = gname if not desc else f"{gname}\n{desc}"
+            color = colors[color_idx % len(colors)]
+            color_idx += 1
+            try:
+                # Remove existing label with identical text to avoid duplicates
+                old_id = existing.get(text)
+                if old_id:
+                    try:
+                        self.client.delete_label(old_id)
+                    except Exception:
+                        pass
+                self.client.create_label(
+                    parent_id=parent_pg_id,
+                    text=text,
+                    position=(x, y),
+                    width=width,
+                    height=height,
+                    style={"background-color": color},
+                )
+            except Exception:
+                continue
 
     def _resolve_component_id(
         self,
