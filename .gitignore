@@ -33,3 +33,6 @@ logs/
 # Generated reports and logs
 automation/report.json
 llm-logs/
+
+# Docker NiFi flow archives (generated, not source controlled)
+docker/overrides/conf/archive/
